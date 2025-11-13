@@ -1,0 +1,6 @@
+mcp
+httpx
+python-dotenv
+fastapi
+uvicorn
+sse-starlette
