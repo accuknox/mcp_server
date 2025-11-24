@@ -74,7 +74,7 @@ if __name__ == "__main__":
     import uvicorn
     
     def signal_handler(sig, frame):
-        print("\n\n✅ Server stopped gracefully\n", file=sys.stderr)
+        print("\n\n Server stopped gracefully\n", file=sys.stderr)
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)

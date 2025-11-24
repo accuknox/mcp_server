@@ -39,6 +39,8 @@ async def search_assets(
     return_type: str = "list",
     limit: int = 10,
     detailed: bool = False,
+    deployed: bool = False,
+    present_on_date: Optional[str] = None,
 ) -> str:
     
     """
@@ -55,19 +57,22 @@ async def search_assets(
         return_type: "list" (default) or "count"
         limit: Maximum results to return (default: 10)
         detailed: Include vulnerabilities and compliance data
+        deployed: Set to True to get AI model deployment statistics (e.g. "Show me deployed models")
+        present_on_date: Filter assets present at a specific time (ISO 8601 format). Defaults to current time if not provided.
     
     Returns:
-        Formatted asset list or count
+        Formatted asset list, count, or model statistics
     
     Examples:
         - "How many Models do I have?" → type_category="Models", return_type="count"
+        - "Show me deployed models" → deployed=True
         - "Show me Container assets" → type_category="Container"
         - "List AWS assets" → cloud_provider="aws"
         - "Show assets with security details" → detailed=True
     """
     return await search_assets_tool(
         api_client, asset_id, type_name, type_category,
-        label_name, region, cloud_provider, return_type, limit, detailed
+        label_name, region, cloud_provider, return_type, limit, detailed, deployed, present_on_date
     )
 
 
