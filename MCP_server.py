@@ -4,11 +4,13 @@ AccuKnox MCP Server - stdio transport
 For use with Gemini CLI and other stdio-based clients
 """
 
-import sys
 import signal
+import sys
 from typing import Optional
-from mcp.server.fastmcp import FastMCP
-from shared import AccuKnoxClient, search_assets_tool, get_model_vulnerabilities_tool
+
+from fastmcp import FastMCP
+
+from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 
 # Global client instance
 api_client = AccuKnoxClient()
@@ -40,16 +42,16 @@ async def search_assets(
     limit: int = 10,
     detailed: bool = False,
     deployed: bool = False,
-    present_on_date: Optional[str] = None,
+    present_on_date_after: Optional[str] = None,
+    present_on_date_before: Optional[str] = None,
 ) -> str:
-    
     """
     READ-ONLY: Search and filter cloud infrastructure assets.
-    
+
     Args:
         asset_id: Filter by specific asset ID
         type_name: Filter by asset type name
-        type_category: Filter by category (sCommon categories: Configuration, User, Models, Block Storage, CI/CD, 
+        type_category: Filter by category (sCommon categories: Configuration, User, Models, Block Storage, CI/CD,
     Datasets, Container, Audit logging, IaC_github-repository)
         label_name: Filter by label name
         region: Filter by cloud region
@@ -58,11 +60,12 @@ async def search_assets(
         limit: Maximum results to return (default: 10)
         detailed: Include vulnerabilities and compliance data
         deployed: Set to True to get AI model deployment statistics (e.g. "Show me deployed models")
-        present_on_date: Filter assets present at a specific time (ISO 8601 format). Defaults to current time if not provided.
-    
+        present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
+        present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
+
     Returns:
         Formatted asset list, count, or model statistics
-    
+
     Examples:
         - "How many Models do I have?" → type_category="Models", return_type="count"
         - "Show me deployed models" → deployed=True
@@ -71,8 +74,19 @@ async def search_assets(
         - "Show assets with security details" → detailed=True
     """
     return await search_assets_tool(
-        api_client, asset_id, type_name, type_category,
-        label_name, region, cloud_provider, return_type, limit, detailed, deployed, present_on_date
+        api_client,
+        asset_id,
+        type_name,
+        type_category,
+        label_name,
+        region,
+        cloud_provider,
+        return_type,
+        limit,
+        detailed,
+        deployed,
+        present_on_date_after,
+        present_on_date_before,
     )
 
 
@@ -80,17 +94,17 @@ async def search_assets(
 async def get_model_vulnerabilities() -> str:
     """
     READ-ONLY: Get AI/ML model security vulnerabilities summary.
-    
+
     Retrieves a comprehensive summary of security issues across:
     - ML Models (machine learning models)
     - LLM Models (large language models)
     - Datasets
-    
+
     Shows breakdown by severity: Critical, High, Medium, Low
-    
+
     Returns:
         Formatted vulnerability report with severity breakdown and recommendations
-    
+
     Examples:
         - "Show me model vulnerabilities"
         - "What security issues do my AI models have?"
@@ -107,7 +121,7 @@ if __name__ == "__main__":
     print("Tools: search_assets, get_model_vulnerabilities", file=sys.stderr)
     print("Press Ctrl+C to shutdown", file=sys.stderr)
     print("=" * 70, file=sys.stderr)
-    
+
     try:
         mcp.run()
     except KeyboardInterrupt:
