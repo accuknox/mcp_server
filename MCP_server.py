@@ -21,7 +21,7 @@ mcp = FastMCP("AccuKnox Asset Manager")
 
 def signal_handler(sig, frame):
     """Handle shutdown signals gracefully"""
-    print("\n\n Shutting down gracefully...", file=sys.stderr)
+    print("\n\n Shutting down gracefully....", file=sys.stderr)
     sys.exit(0)
 
 
