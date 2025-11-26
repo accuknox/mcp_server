@@ -1,24 +1,21 @@
-"""
-AccuKnox Assets MCP Server - Production Ready
-"""
-
+# server_http.py
 import logging
 import warnings
 from typing import Literal, Optional
 
 import httpx
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_headers
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
-# Suppress warnings
-logging.getLogger("mcp.server.streamable_http").setLevel(logging.CRITICAL)
-logging.getLogger("anyio").setLevel(logging.CRITICAL)
-warnings.filterwarnings("ignore", category=RuntimeWarning)
+from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 
-# Initialize FastMCP server
-mcp = FastMCP("AccuKnox Assets Server")
+# Initialize FastMCP server for HTTP
+mcp = FastMCP(
+    "AccuKnox Assets Server",
+    stateless_http=True,
+    json_response=True,
+)
 
 
 @mcp.custom_route("/", methods=["GET"])
@@ -54,61 +51,10 @@ async def health_check_simple(request: Request) -> PlainTextResponse:
     return PlainTextResponse("OK")
 
 
-@mcp.custom_route("/tools", methods=["GET"])
-async def list_tools_http(request: Request) -> JSONResponse:
-    return JSONResponse(
-        {"tools": [{"name": "search_assets", "description": "Search AccuKnox assets"}]},
-    )
+api_client = AccuKnoxClient()
 
 
-class AccuKnoxClient:
-    def __init__(self, base_url: str, api_token: str):
-        self.base_url = base_url.rstrip("/")
-        self.api_token = api_token
-        self.headers = {
-            "Authorization": f"Bearer {self.api_token}",
-            "Content-Type": "application/json",
-        }
-
-    async def fetch_assets(
-        self,
-        asset_id=None,
-        type_name=None,
-        type_category=None,
-        label_name=None,
-        region=None,
-        cloud_provider=None,
-        page=1,
-        page_size=100,
-    ) -> dict:
-        endpoint = f"{self.base_url}/api/v1/assets"
-        params = {"page": page, "page_size": page_size}
-
-        if asset_id:
-            params["id"] = asset_id
-        if type_name:
-            params["type_name"] = type_name
-        if type_category:
-            params["type_category"] = type_category
-        if label_name:
-            params["label_name"] = label_name
-        if region:
-            params["region"] = region
-        if cloud_provider:
-            params["cloud_provider"] = cloud_provider
-
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                endpoint,
-                headers=self.headers,
-                params=params,
-                timeout=30.0,
-            )
-            response.raise_for_status()
-            return response.json()
-
-
-@mcp.tool
+@mcp.tool()
 async def search_assets(
     asset_id: Optional[str] = None,
     type_name: Optional[str] = None,
@@ -116,87 +62,56 @@ async def search_assets(
     label_name: Optional[str] = None,
     region: Optional[str] = None,
     cloud_provider: Optional[str] = None,
-    return_type: Literal["list", "count"] = "list",
+    return_type: str = "list",
     limit: int = 10,
     detailed: bool = False,
-) -> dict:
+    deployed: bool = False,
+    present_on_date_after: Optional[str] = None,
+    present_on_date_before: Optional[str] = None,
+) -> str:
     """
-    Search and filter cloud infrastructure assets.
+    READ-ONLY: Search and filter cloud infrastructure assets.
 
     Args:
         asset_id: Filter by specific asset ID
         type_name: Filter by asset type name
-        type_category: Filter by category (Configuration, User, Models, Block Storage,
-                       CI/CD, Datasets, Container, Audit logging, IaC_github-repository)
+        type_category: Filter by category (sCommon categories: Configuration, User, Models, Block Storage, CI/CD,
+    Datasets, Container, Audit logging, IaC_github-repository)
         label_name: Filter by label name
         region: Filter by cloud region
         cloud_provider: Filter by provider (aws, azure, gcp)
-        return_type: "list" or "count"
-        limit: Maximum results (default: 10)
+        return_type: "list" (default) or "count"
+        limit: Maximum results to return (default: 10)
         detailed: Include vulnerabilities and compliance data
+        deployed: Set to True to get AI model deployment statistics (e.g. "Show me deployed models")
+        present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
+        present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
 
     Returns:
-        Asset list or count
+        Formatted asset list, count, or model statistics
+
+    Examples:
+        - "How many Models do I have?" → type_category="Models", return_type="count"
+        - "Show me deployed models" → deployed=True
+        - "Show me Container assets" → type_category="Container"
+        - "List AWS assets" → cloud_provider="aws"
+        - "Show assets with security details" → detailed=True
     """
-
-    try:
-        headers = get_http_headers(include_all=True)
-    except Exception as e:
-        return {"error": "Failed to read headers", "message": str(e)}
-
-    accuknox_base_url = headers.get("x-accuknox-base-url", "")
-    accuknox_api_token = headers.get("x-accuknox-api-token", "")
-
-    if not accuknox_base_url:
-        return {"error": "Missing x-accuknox-base-url header"}
-    if not accuknox_api_token:
-        return {"error": "Missing x-accuknox-api-token header"}
-
-    client = AccuKnoxClient(accuknox_base_url, accuknox_api_token)
-
-    try:
-        response = await client.fetch_assets(
-            asset_id=asset_id,
-            type_name=type_name,
-            type_category=type_category,
-            label_name=label_name,
-            region=region,
-            cloud_provider=cloud_provider,
-            page=1,
-            page_size=limit if return_type == "list" else 1000,
-        )
-
-        assets = response.get("results", [])
-        total_count = response.get("count", len(assets))
-
-        if return_type == "count":
-            return {"count": total_count}
-
-        formatted_assets = []
-        for asset in assets[:limit]:
-            asset_data = {
-                "id": asset.get("id"),
-                "name": asset.get("name"),
-                "type": asset.get("type_name"),
-                "category": asset.get("type_category"),
-                "cloud_provider": asset.get("cloud_provider"),
-                "region": asset.get("region"),
-                "labels": asset.get("labels", []),
-            }
-            if detailed:
-                asset_data["vulnerabilities"] = asset.get("vulnerabilities", [])
-                asset_data["compliance"] = asset.get("compliance", {})
-            formatted_assets.append(asset_data)
-
-        return {
-            "total_count": total_count,
-            "returned_count": len(formatted_assets),
-            "assets": formatted_assets,
-        }
-    except httpx.HTTPStatusError as e:
-        return {"error": f"HTTP {e.response.status_code}", "message": str(e)}
-    except Exception as e:
-        return {"error": "Request failed", "message": str(e)}
+    return await search_assets_tool(
+        api_client,
+        asset_id,
+        type_name,
+        type_category,
+        label_name,
+        region,
+        cloud_provider,
+        return_type,
+        limit,
+        detailed,
+        deployed,
+        present_on_date_after,
+        present_on_date_before,
+    )
 
 
 if __name__ == "__main__":
@@ -213,5 +128,4 @@ if __name__ == "__main__":
         transport="http",
         host="0.0.0.0",
         port=8000,
-        with_sse=False,  # ← THIS IS THE FIX!
     )
