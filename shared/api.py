@@ -137,7 +137,7 @@ class AccuKnoxClient:
                     "conditions": [
                         {
                             "target": "label_name",
-                            "property": "date_discovered",
+                            "property": "last_seen",
                             "operator": "in_range",
                             "values": [start_ts, end_ts]
                         }
