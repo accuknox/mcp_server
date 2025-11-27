@@ -21,3 +21,7 @@ ENV/
 
 # Project specific
 .gemini
+
+.python-version
+uv.lock
+pyproject.toml
