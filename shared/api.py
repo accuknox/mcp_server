@@ -110,6 +110,7 @@ class AccuKnoxClient:
             )
             response.raise_for_status()
             return response.json()
+
     async def fetch_ai_assets(
         self,
         start_ts: int,
@@ -117,11 +118,11 @@ class AccuKnoxClient:
         cloud_provider: Optional[str] = None,
         deployed: Optional[bool] = None,
         page: int = 1,
-        page_size: int = 100
+        page_size: int = 100,
     ) -> dict:
         """Fetch AI assets using the new API endpoint with time-based filtering"""
         endpoint = f"{self.base_url}/api/v1/modelknox/ai-assets/"
-        
+
         # Construct the complex payload
         payload = {
             "asset_type": "model",
@@ -140,51 +141,52 @@ class AccuKnoxClient:
                             "target": "label_name",
                             "property": "last_seen",
                             "operator": "in_range",
-                            "values": [start_ts, end_ts]
-                        }
-                    ]
-                }
+                            "values": [start_ts, end_ts],
+                        },
+                    ],
+                },
             ],
-            "view": "table"
+            "view": "table",
         }
 
         if deployed is not None:
-            payload["groups"][0]["conditions"].append({
-                "target": "label_name",
-                "property": "status",
-                "operator": "is",
-                "values": [deployed]
-            })
+            payload["groups"][0]["conditions"].append(
+                {
+                    "target": "label_name",
+                    "property": "status",
+                    "operator": "is",
+                    "values": [deployed],
+                },
+            )
 
         # Add cloud provider filter if specified
         # Note: The user example didn't explicitly show where cloud_provider goes in the new structure
-        # but based on previous code it was a top level field or part of match. 
+        # but based on previous code it was a top level field or part of match.
         # However, the user request specifically asked to match the provided JSON structure.
         # If cloud_provider is needed, it might need to be added to 'match' or 'conditions'.
-        # For now, I will assume the previous logic of adding it to the payload is still valid 
-        # OR it should be added to the conditions. 
+        # For now, I will assume the previous logic of adding it to the payload is still valid
+        # OR it should be added to the conditions.
         # Let's check the previous implementation: payload["cloud_type"] = [cloud_provider]
-        # The new structure is very different. 
+        # The new structure is very different.
         # I will add it as a top-level field as before, but I should be careful.
         # Actually, looking at the user example, it seems strictly about the filter structure.
         # I will keep the cloud_type if it was there, but the user example shows a specific structure.
         # Let's try to add it to 'match' if provided, or keep it top level if that was the pattern.
         # The previous code had: payload["cloud_type"] = [cloud_provider]
         # I will preserve that behavior but merge it with the new structure.
-        
+
         if cloud_provider:
             if cloud_provider.lower() == "aws":
-                 payload["cloud_type"] = ["aws_sagemaker", "aws_bedrock"]
+                payload["cloud_type"] = ["aws_sagemaker", "aws_bedrock"]
             else:
-                 payload["cloud_type"] = [cloud_provider]
+                payload["cloud_type"] = [cloud_provider]
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 endpoint,
                 headers=self.headers,
                 json=payload,
-                timeout=30.0
+                timeout=30.0,
             )
             response.raise_for_status()
             return response.json()
-
