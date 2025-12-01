@@ -157,6 +157,7 @@ async def get_finding_config(data_type: str | None = None) -> dict:
     Args:
         data_type (str | None):
             The human-readable name of the finding type.
+            Default: "Cloud Findings"
             Examples:
               - "Cloud Findings"
               - "Container Image Findings"
@@ -236,6 +237,8 @@ async def get_finding_filter(
 ) -> dict:
     """
     Returns dropdown filter values for a given filter_field + data_type only for finding.
+    Note:
+        Shorter terms tend to match more items.
     Args:
         filter_field (str): The field to fetch filter values for.
         data_type (str): Human-readable finding type (e.g., "Cloud Findings").

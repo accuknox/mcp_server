@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, Literal, Optional
 
 import httpx
+from httpx import ConnectTimeout, HTTPStatusError, ReadTimeout
 
 # Create a module-level logger
 logger = logging.getLogger(__name__)
@@ -58,26 +59,40 @@ async def call_api(
     url = f"{base_url}/{endpoint.lstrip('/')}"
     logger.info(f"API endpoint {url}, {params}, {data}")
 
-    async with httpx.AsyncClient() as client:
-        if method.upper() == "GET":
-            response = await client.get(
-                url,
-                headers=HEADERS,
-                params=params,
-                timeout=timeout,
-            )
-        elif method.upper() == "POST":
-            response = await client.post(
-                url,
-                headers=HEADERS,
-                json=data,
-                params=params,
-                timeout=timeout,
-            )
-        else:
-            raise ValueError(f"Unsupported HTTP method: {method}")
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            if method.upper() == "GET":
+                response = await client.get(url, headers=HEADERS, params=params)
+            elif method.upper() == "POST":
+                response = await client.post(
+                    url,
+                    headers=HEADERS,
+                    json=data,
+                    params=params,
+                )
+            else:
+                return {"error": f"Unsupported method '{method}'"}
 
-        response.raise_for_status()
-        api_data = response.json()
-        # logger.info(f"API endpoint {api_data}")
-        return api_data
+            response.raise_for_status()
+            return response.json()
+
+        except ReadTimeout:
+            logger.error(f"Request to {url} timed out after {timeout}s")
+            return {"error": "Request timed out. The API took too long to respond."}
+
+        except ConnectTimeout:
+            logger.error(f"Connection to {url} timed out")
+            return {"error": "Connection timed out. Unable to reach the API server."}
+
+        except HTTPStatusError as e:
+            logger.error(
+                f"API returned HTTP {e.response.status_code}: {e.response.text}",
+            )
+            return {
+                "error": f"API error {e.response.status_code}",
+                "details": e.response.text,
+            }
+
+        except Exception as e:
+            logger.exception(f"Unexpected API error: {e}")
+            return {"error": "Unexpected API error occurred"}
