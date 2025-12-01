@@ -172,7 +172,6 @@ async def validate_filters(extra_filters: dict, data_type: str, filter_fields: d
 
         elif key in filter_fields:
             task_key.append(key)
-            logger.info(f"Step2:{key}")
             tasks.append(
                 _finding_filter(
                     filter_field=key,
