@@ -115,6 +115,7 @@ class AccuKnoxClient:
         start_ts: int,
         end_ts: int,
         cloud_provider: Optional[str] = None,
+        deployed: Optional[bool] = None,
         page: int = 1,
         page_size: int = 100
     ) -> dict:
@@ -146,6 +147,14 @@ class AccuKnoxClient:
             ],
             "view": "table"
         }
+
+        if deployed is not None:
+            payload["groups"][0]["conditions"].append({
+                "target": "label_name",
+                "property": "status",
+                "operator": "is",
+                "values": [deployed]
+            })
 
         # Add cloud provider filter if specified
         # Note: The user example didn't explicitly show where cloud_provider goes in the new structure

@@ -215,7 +215,7 @@ async def search_assets_tool(
     return_type: str = "list",
     limit: int = 10,
     detailed: bool = False,
-    deployed: bool = False,
+    deployed: Optional[bool] = None,
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
 ) -> str:
@@ -239,7 +239,7 @@ async def search_assets_tool(
         #     )
         #     return format_model_stats(data)
         # If requesting deployed models statistics
-        if deployed:
+        if deployed is not None:
             # Convert dates to timestamps for the new API
             # from datetime import datetime, timezone
             
@@ -256,7 +256,8 @@ async def search_assets_tool(
             data = await client.fetch_ai_assets(
                 start_ts=start_ts,
                 end_ts=end_ts,
-                cloud_provider=cloud_provider
+                cloud_provider=cloud_provider,
+                deployed=deployed
             )
             return format_ai_assets_stats(data)
 

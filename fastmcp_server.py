@@ -71,7 +71,7 @@ async def search_assets(
     return_type: str = "list",
     limit: int = 10,
     detailed: bool = False,
-    deployed: bool = False,
+    deployed: Optional[bool] = None,
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
 ) -> str:
@@ -89,7 +89,7 @@ async def search_assets(
         return_type: "list" (default) or "count"
         limit: Maximum results to return (default: 10)
         detailed: Include vulnerabilities and compliance data
-        deployed: Set to True to get AI model deployment statistics (e.g. "Show me deployed models")
+        deployed: Optional[bool]. Set to True for deployed models, False for undeployed models, or None (default) to ignore deployment status.
         present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
         present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
 
