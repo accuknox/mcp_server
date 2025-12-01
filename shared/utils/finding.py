@@ -42,7 +42,7 @@ vul_data_map = {
     "Prowler Cloud Findings": "prowler",
     "Secret Scan Findings": "secret scanning",
     "SecurityHub AWS Findings": "securityhub",
-    "Software Composition Analysis Findings": "trivy-sca",
+    "Software Composition Analysis": "trivy-sca",
     "Static Code Analysis Findings": "sonarqube",
     "STIG Findings": "RRA_STIG",
     "VM Malware Findings": "clamscan",
@@ -64,7 +64,7 @@ async def _get_finding_config(data_type: str | None = None) -> dict:
     data_types = []
 
     for cfg in configs:
-        cfg_display_name = cfg.get("data_type_display_name")
+        cfg_display_name = cfg.get("config_name")
         all_display_fields = cfg.get("all_display_fields", {})
         all_filter_fields = cfg.get("all_filter_fields", {})
         base_date_fields = ["present_on_date", "last_seen", "date_discovered"]
