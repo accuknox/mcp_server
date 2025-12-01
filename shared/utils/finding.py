@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from shared.utils.api_utils import call_api
@@ -64,15 +65,21 @@ async def _get_finding_config(data_type: str | None = None) -> dict:
 
     for cfg in configs:
         cfg_display_name = cfg.get("data_type_display_name")
-        config_maps[cfg_display_name] = cfg
-        data_types.append(cfg_display_name)
-        if data_type and cfg_display_name != data_type:
-            continue
-
         all_display_fields = cfg.get("all_display_fields", {})
         all_filter_fields = cfg.get("all_filter_fields", {})
-
-        return {
+        base_date_fields = ["present_on_date", "last_seen", "date_discovered"]
+        for field in base_date_fields:
+            if field in all_filter_fields:
+                all_filter_fields.pop(field)
+                all_filter_fields[
+                    f"{field}_after"
+                ] = f"{field.replace('_', ' ').title()} on or after this date. Format: YYYY-MM-DD"
+                all_filter_fields[
+                    f"{field}_before"
+                ] = f"{field.replace('_', ' ').title()} on or before this date. Format: YYYY-MM-DD"
+        group_by = cfg.get("group_by", {})
+        group_by["group_by_order"] = "Default group by order is '-total' "
+        config_maps[cfg_display_name] = {
             "data_type": cfg_display_name,
             "display_fields": all_display_fields,
             "filter_fields": all_filter_fields,
@@ -80,8 +87,13 @@ async def _get_finding_config(data_type: str | None = None) -> dict:
             "group_by": cfg.get("group_by", {}),
             "order_by": cfg.get("order_by"),
         }
+        data_types.append(cfg_display_name)
 
-    return {"data_type": f"No available {data_type} data type. Available: {data_types}"}
+    if not data_type in config_maps:
+        return {
+            "data_type": f"No available {data_type} data type. Available: {data_types}",
+        }
+    return config_maps.get(data_type)
 
 
 def validate_fields(
@@ -128,19 +140,50 @@ def _normalize_dict(value):
 async def validate_filters(extra_filters: dict, data_type: str, filter_fields: dict):
     if not extra_filters:
         return {}, {}
+    tasks = []
+    valid_filters = {}
+    invalid_filters = {}
+    task_key = []
 
-    tasks = [
-        _finding_filter(filter_field=key, data_type=data_type, filter_search=value)
-        for key, value in extra_filters.items()
-        if key in filter_fields
+    date_keys = [
+        "present_on_date_after",
+        "present_on_date_before",
+        "last_seen_after",
+        "last_seen_before",
+        "date_discovered_after",
+        "date_discovered_before",
     ]
+    for key, value in extra_filters.items():
+        if key in date_keys:
+            try:
+                # Validate date format
+                datetime.strptime(value, "%Y-%m-%d")
+                valid_filters[key] = value
+                if key.endswith("_after"):
+                    before_key = key.replace("_after", "_before")
+                    if before_key not in extra_filters:
+                        valid_filters[before_key] = datetime.now().strftime("%Y-%m-%d")
+
+            except ValueError:  # catch only date parsing errors
+                invalid_filters[key] = {
+                    "provided_value": value,
+                    "message": f"'{value}' is not valid. Valid Format: YYYY-MM-DD.",
+                }
+
+        elif key in filter_fields:
+            task_key.append(key)
+            tasks.append(
+                _finding_filter(
+                    filter_field=key,
+                    data_type=data_type,
+                    filter_search=value,
+                ),
+            )
 
     results = await asyncio.gather(*tasks)
 
-    valid_filters = {}
-    invalid_filters = {}
-
-    for (key, value), dropdown in zip(extra_filters.items(), results):
+    for key, dropdown in zip(task_key, results):
+        value = extra_filters.get(key)
         dropdown_values = set(dropdown.get("results", []))  # simplified
 
         if value not in dropdown_values:
