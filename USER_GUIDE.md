@@ -13,7 +13,7 @@ Clone the repository and install dependencies:
 
 ```bash
 git clone <repository-url>
-cd MCP_server_Poc
+cd mcp_server
 python3 -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -47,8 +47,8 @@ ACCUKNOX_API_TOKEN=your_token_here
 {
   "mcpServers": {
     "accuknox": {
-      "command": "/absolute/path/to/MCP_server_Poc/venv/bin/python",
-      "args": ["/absolute/path/to/MCP_server_Poc/MCP_server.py"]
+      "command": "/absolute/path/to/mcp_server/venv/bin/python",
+      "args": ["/absolute/path/to/mcp_server/MCP_server.py"]
     }
   }
 }
@@ -69,8 +69,8 @@ Cursor supports MCP servers via a configuration file similar to VS Code, but in 
 {
   "mcpServers": {
     "accuknox": {
-      "command": "/absolute/path/to/MCP_server_Poc/venv/bin/python",
-      "args": ["/absolute/path/to/MCP_server_Poc/MCP_server.py"]
+      "command": "/absolute/path/to/mcp_server/venv/bin/python",
+      "args": ["/absolute/path/to/mcp_server/MCP_server.py"]
     }
   }
 }
@@ -82,7 +82,7 @@ If Cursor fails to load the environment variables, create a `start_server.sh` sc
 ```bash
 #!/bin/bash
 # Navigate to the project directory to ensure .env is loaded
-cd /absolute/path/to/MCP_server_Poc
+cd /absolute/path/to/mcp_server
 source .env
 ./venv/bin/python MCP_server.py
 ```
@@ -100,8 +100,8 @@ Make it executable (`chmod +x start_server.sh`) and update `mcp.json` to point t
 {
   "mcpServers": {
     "accuknox": {
-      "command": "/absolute/path/to/MCP_server_Poc/venv/bin/python",
-      "args": ["/absolute/path/to/MCP_server_Poc/MCP_server.py"]
+      "command": "/absolute/path/to/mcp_server/venv/bin/python",
+      "args": ["/absolute/path/to/mcp_server/MCP_server.py"]
     }
   }
 }
@@ -117,8 +117,8 @@ Make it executable (`chmod +x start_server.sh`) and update `mcp.json` to point t
 
 ```bash
 gemini mcp add accuknox \
-  /absolute/path/to/MCP_server_Poc/venv/bin/python \
-  /absolute/path/to/MCP_server_Poc/MCP_server.py
+  /absolute/path/to/mcp_server/venv/bin/python \
+  /absolute/path/to/mcp_server/MCP_server.py
 ```
 
 **Note:** Ensure you run the `gemini` command from the project directory where `.env` is located, or that the environment variables are exported in your shell.
@@ -129,7 +129,7 @@ To use the `fastmcp` server in HTTP mode (SSE):
 
 1.  **Activate Virtual Environment:**
     ```bash
-    cd /absolute/path/to/MCP_server_Poc
+    cd /absolute/path/to/mcp_server
     source venv/bin/activate
     ```
 

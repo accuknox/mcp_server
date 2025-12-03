@@ -12,7 +12,7 @@ from mcp.client.stdio import stdio_client
 async def test_deployed_models():
     server_params = StdioServerParameters(
         command="/home/satyam/AI_observability_ebpf/langchain_gemini_env/bin/python3",
-        args=["/home/satyam/MCP_server_PoC/MCP_server.py"],
+        args=["/home/satyam/mcp_server/MCP_server.py"],
         env=None,
     )
 
