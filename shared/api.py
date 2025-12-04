@@ -3,8 +3,9 @@ AccuKnox API Client
 Handles all API interactions with AccuKnox CSPM
 """
 
+import logging
 import os
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 from dotenv import load_dotenv
@@ -17,9 +18,13 @@ load_dotenv()
 class AccuKnoxClient:
     """Client for AccuKnox CSPM API"""
 
-    def __init__(self):
-        self.base_url = os.getenv("ACCUKNOX_BASE_URL", "").rstrip("/")
-        self.api_token = os.getenv("ACCUKNOX_API_TOKEN", "")
+    def __init__(self, base_url: Optional[str] = None, api_token: Optional[str] = None):
+        self.base_url = (base_url or os.getenv("ACCUKNOX_BASE_URL", "")).rstrip("/")
+        logging.info(f"AccuKnoxClient initialized with base_url: '{self.base_url}'")
+        self.api_token = api_token or os.getenv("ACCUKNOX_API_TOKEN", "")
+        logging.warning(
+            f"AccuKnoxClient initialized with api_token: '{self.api_token}' , base_url: '{self.base_url}'",
+        )
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
@@ -41,6 +46,7 @@ class AccuKnoxClient:
         """Fetch assets from AccuKnox"""
 
         endpoint = f"{self.base_url}/api/v1/assets"
+        logging.warning(f"Fetching assets from endpoint: {endpoint}")
         params = {"page": page, "page_size": page_size}
 
         if asset_id:
@@ -60,6 +66,9 @@ class AccuKnoxClient:
             params["present_on_date_before"] = present_on_date_before
 
         async with httpx.AsyncClient() as client:
+            logging.warning(
+                f"Making request to {endpoint} with tokens {self.api_token} and params {params}",
+            )
             response = await client.get(
                 endpoint,
                 headers=self.headers,

@@ -4,7 +4,7 @@ import warnings
 from typing import Any, Dict, Literal, Optional
 
 import httpx
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
@@ -15,6 +15,64 @@ from shared.utils.finding import (
     _get_finding_config,
     _normalize_dict,
 )
+
+
+def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
+    """Helper to extract auth context from request"""
+    default_base_url = "https://cspm.demo.accuknox.com"
+
+    if not ctx:
+        logging.warning("No context provided")
+        return default_base_url, None
+    logging.warning("Context provided")
+    try:
+        req = ctx.get_http_request()
+
+        print(req.headers)
+        if not req:
+            logging.warning("No HTTP request found")
+            return default_base_url, None
+
+        logging.warning("HTTP request found")
+        headers = req.headers
+        token = headers.get("Token")
+        if token:
+            token = token.strip()
+        base_url = headers.get("Base_url")
+
+        logging.warning(
+            f"Extracted from headers - Token: {'Yes' if token else 'No'}, Base URL: {base_url}",
+        )
+
+        # Fallback: Check query parameters
+        if not token:
+            logging.warning("Token not found in headers, checking query parameters")
+            token = req.query_params.get("token") or req.query_params.get("api_token")
+        if not base_url:
+            logging.warning("Base URL not found in headers, checking query parameters")
+            base_url = req.query_params.get("base_url")
+
+        # Default to demo URL if still missing
+        if not base_url:
+            logging.warning("Base URL not found, using default URL")
+            base_url = default_base_url
+
+        auth_headers = None
+        if token:
+            # Reconstruct headers for call_api
+            logging.warning("Token found")
+            auth_headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+            return base_url, token
+
+        return base_url, auth_headers
+
+    except Exception as e:
+        logging.error(f"Failed to extract auth context: {e}")
+        return default_base_url, None
+
 
 # Initialize FastMCP server for HTTP
 mcp = FastMCP(
@@ -74,6 +132,7 @@ async def search_assets(
     deployed: Optional[bool] = None,
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
+    ctx: Context = None,
 ) -> str:
     """
     READ-ONLY: Search and filter cloud infrastructure assets.
@@ -92,6 +151,7 @@ async def search_assets(
         deployed: Optional[bool]. Set to True for deployed models, False for undeployed models, or None (default) to ignore deployment status.
         present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
         present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
+        ctx: FastMCP Context (injected automatically)
 
     Returns:
         Formatted asset list, count, or model statistics
@@ -103,8 +163,22 @@ async def search_assets(
         - "List AWS assets" → cloud_provider="aws"
         - "Show assets with security details" → detailed=True
     """
+    # Dynamic Authentication Logic
+    # Dynamic Authentication Logic
+    client = api_client  # Default to global client
+
+    base_url, token = _get_auth_context(ctx)
+    if base_url and token:
+        logging.info(f"Initializing AccuKnoxClient with base_url: {base_url}")
+        logging.warning(f"Creating new AccuKnoxClient with provided context {token}")
+        # Extract token from headers if available for AccuKnoxClient
+
+        client = AccuKnoxClient(base_url=base_url, api_token=token)
+    else:
+        logging.warning("Using global api_client (might be unconfigured)")
+
     return await search_assets_tool(
-        api_client,
+        client,
         asset_id,
         type_name,
         type_category,
@@ -156,7 +230,7 @@ async def data_type_selection() -> dict:
 
 
 @mcp.tool
-async def get_finding_config(data_type: str | None = None) -> dict:
+async def get_finding_config(data_type: str | None = None, ctx: Context = None) -> dict:
     """
     MCP Tool: Retrieve finding configuration metadata for a given data type.
 
@@ -184,7 +258,8 @@ async def get_finding_config(data_type: str | None = None) -> dict:
             - order_by:
                 Default sorting field for findings.
     """
-    return await _get_finding_config(data_type)
+    base_url, headers = _get_auth_context(ctx)
+    return await _get_finding_config(data_type, base_url=base_url, headers=headers)
 
 
 @mcp.tool
@@ -197,6 +272,7 @@ async def get_finding(
     display_fields: dict | str | None = None,
     group_by: Optional[str] = None,
     search: str = "",
+    ctx: Context = None,
 ) -> dict:
     """
     MCP Tool to fetch findings.
@@ -223,6 +299,7 @@ async def get_finding(
     """
     extra_filters = _normalize_dict(extra_filters)
     display_fields = _normalize_dict(display_fields)
+    base_url, headers = _get_auth_context(ctx)
     return await _fetch_findings(
         data_type=data_type,
         ordering=ordering,
@@ -232,6 +309,8 @@ async def get_finding(
         display_fields=display_fields,
         group_by=group_by,
         search=search,
+        base_url=base_url,
+        headers=headers,
     )
 
 
@@ -240,6 +319,7 @@ async def get_finding_filter(
     filter_field: str,
     data_type: str,
     filter_search: Optional[str] = "",
+    ctx: Context = None,
 ) -> dict:
     """
     Returns dropdown filter values for a given filter_field + data_type only for finding.
@@ -253,10 +333,13 @@ async def get_finding_filter(
     Returns:
         dict: { filter_field, count, results }
     """
+    base_url, headers = _get_auth_context(ctx)
     return await _finding_filter(
         filter_field=filter_field,
         data_type=data_type,
         filter_search=filter_search or "",
+        base_url=base_url,
+        headers=headers,
     )
 
 
@@ -269,7 +352,7 @@ if __name__ == "__main__":
     print(f"💚 http://0.0.0.0:8000/health")
     print("=" * 70)
 
-    # THE KEY FIX: Use with_sse=False to disable Accept header checking
+    # Use SSE transport for persistent connection and better client compatibility
     mcp.run(
         transport="http",
         host="0.0.0.0",

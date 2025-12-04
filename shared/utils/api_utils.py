@@ -37,6 +37,8 @@ async def call_api(
     params: Optional[Dict[str, Any]] = None,
     data: Optional[Dict[str, Any]] = None,
     timeout: float = 30.0,
+    base_url_override: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> dict:
     """
     Utility function to call GET or POST APIs.
@@ -48,25 +50,33 @@ async def call_api(
         params: Optional query parameters for GET requests.
         data: Optional JSON body for POST requests.
         timeout: Request timeout in seconds.
+        base_url_override: Optional base URL to use instead of the configured one.
+        headers: Optional headers to use instead of the default ones.
 
     Returns:
         Parsed JSON response as a dictionary.
     """
-    base_url = BASE_URLS.get(base_url_type)
+    if base_url_override:
+        base_url = base_url_override.rstrip("/")
+    else:
+        base_url = BASE_URLS.get(base_url_type)
+
     if not base_url:
         raise ValueError(f"Base URL for '{base_url_type}' is not configured.")
 
     url = f"{base_url}/{endpoint.lstrip('/')}"
     logger.info(f"API endpoint {url}, {params}, {data}")
 
+    request_headers = headers if headers is not None else HEADERS
+
     async with httpx.AsyncClient(timeout=timeout) as client:
         try:
             if method.upper() == "GET":
-                response = await client.get(url, headers=HEADERS, params=params)
+                response = await client.get(url, headers=request_headers, params=params)
             elif method.upper() == "POST":
                 response = await client.post(
                     url,
-                    headers=HEADERS,
+                    headers=request_headers,
                     json=data,
                     params=params,
                 )

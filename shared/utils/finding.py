@@ -53,14 +53,23 @@ vul_data_map = {
 }
 
 
-async def _get_finding_config(data_type: str | None = None) -> dict:
+async def _get_finding_config(
+    data_type: str | None = None,
+    base_url: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
+) -> dict:
     """
     Fetch and return the finding configuration for a given data_type.
     If data_type is None, returns the first config by default.
     """
 
     endpoint = "api/v1/vulnerability-configs/filters-data-config"
-    configs = await call_api(endpoint, method="GET")
+    configs = await call_api(
+        endpoint,
+        method="GET",
+        base_url_override=base_url,
+        headers=headers,
+    )
     data_types = []
 
     for cfg in configs:
@@ -137,7 +146,13 @@ def _normalize_dict(value):
     raise ValueError("Expected dict or JSON string")
 
 
-async def validate_filters(extra_filters: dict, data_type: str, filter_fields: dict):
+async def validate_filters(
+    extra_filters: dict,
+    data_type: str,
+    filter_fields: dict,
+    base_url: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
+):
     if not extra_filters:
         return {}, {}
     tasks = []
@@ -177,6 +192,8 @@ async def validate_filters(extra_filters: dict, data_type: str, filter_fields: d
                     filter_field=key,
                     data_type=data_type,
                     filter_search=value,
+                    base_url=base_url,
+                    headers=headers,
                 ),
             )
 
@@ -212,6 +229,8 @@ async def _fetch_findings(
     display_fields: Optional[Dict[str, Any]] = None,
     group_by: Optional[str] = None,
     search: str = "",
+    base_url: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> dict:
     """
     Internal flexible finding fetcher.
@@ -222,7 +241,11 @@ async def _fetch_findings(
     - Applies default filters: status=Active, ignored=False
     """
     if not config_maps:
-        config = await _get_finding_config(data_type)
+        config = await _get_finding_config(
+            data_type,
+            base_url=base_url,
+            headers=headers,
+        )
     else:
         config = config_maps.get(data_type)
     if not config:
@@ -240,6 +263,8 @@ async def _fetch_findings(
         extra_filters or {},
         data_type,
         filter_fields,
+        base_url=base_url,
+        headers=headers,
     )
     if invalid_filter:
         return invalid_filter
@@ -258,7 +283,13 @@ async def _fetch_findings(
         params["group_by"] = group_by
         params["group_by_order"] = "-total"
 
-    response = await call_api("api/v1/finding-dashboard", method="GET", params=params)
+    response = await call_api(
+        "api/v1/finding-dashboard",
+        method="GET",
+        params=params,
+        base_url_override=base_url,
+        headers=headers,
+    )
 
     if display_fields is None:
         return {"count": response.get("count", 0)}
@@ -289,6 +320,8 @@ async def _finding_filter(
     filter_field: str,
     data_type: str,
     filter_search: str = "",
+    base_url: Optional[str] = None,
+    headers: Optional[Dict[str, str]] = None,
 ) -> dict:
     """
     Fetch filter dropdown values for a given filter_field + data_type.
@@ -308,6 +341,8 @@ async def _finding_filter(
         "api/v1/finding-dashboard/filter-values",
         method="GET",
         params=params,
+        base_url_override=base_url,
+        headers=headers,
     )
 
     return {
