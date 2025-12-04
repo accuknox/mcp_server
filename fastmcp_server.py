@@ -1,9 +1,11 @@
 # server_http.py
 import logging
+import os
 import warnings
 from typing import Any, Dict, Literal, Optional
 
 import httpx
+import uvicorn
 from fastmcp import Context, FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
@@ -353,8 +355,23 @@ if __name__ == "__main__":
     print("=" * 70)
 
     # Use SSE transport for persistent connection and better client compatibility
-    mcp.run(
-        transport="http",
-        host="0.0.0.0",
-        port=8000,
-    )
+    # Use SSE transport for persistent connection and better client compatibility
+    ssl_cert = os.environ.get("SSL_CERT_FILE")
+    ssl_key = os.environ.get("SSL_KEY_FILE")
+
+    kwargs = {
+        "host": "0.0.0.0",
+        "port": 8000,
+    }
+
+    if ssl_cert and ssl_key:
+        print(f"🔐 SSL Enabled")
+        print(f"   Cert: {ssl_cert}")
+        print(f"   Key:  {ssl_key}")
+        kwargs["ssl_certfile"] = ssl_cert
+        kwargs["ssl_keyfile"] = ssl_key
+    else:
+        print("🔓 SSL Disabled (HTTP only)")
+
+    # mcp.run(**kwargs)
+    uvicorn.run(mcp.http_app(), **kwargs)
