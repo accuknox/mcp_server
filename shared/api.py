@@ -65,7 +65,7 @@ class AccuKnoxClient:
             params["present_on_date_after"] = present_on_date_after
             params["present_on_date_before"] = present_on_date_before
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             logging.warning(
                 f"Making request to {endpoint} with tokens {self.api_token} and params {params}",
             )
@@ -85,7 +85,7 @@ class AccuKnoxClient:
             f"{self.base_url}/api/v1/modelknox/dashboard/ondemand-model-issues-summary/"
         )
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.get(
                 endpoint,
                 headers=self.headers,
@@ -190,7 +190,7 @@ class AccuKnoxClient:
             else:
                 payload["cloud_type"] = [cloud_provider]
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(verify=False) as client:
             response = await client.post(
                 endpoint,
                 headers=self.headers,
