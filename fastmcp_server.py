@@ -1,9 +1,11 @@
 # server_http.py
 import logging
+import os
 import warnings
 from typing import Any, Dict, Literal, Optional
 
 import httpx
+import uvicorn
 from fastmcp import Context, FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
@@ -77,7 +79,6 @@ def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
 # Initialize FastMCP server for HTTP
 mcp = FastMCP(
     "AccuKnox Assets Server",
-    stateless_http=True,
     json_response=True,
 )
 
@@ -113,9 +114,6 @@ async def health_check(request: Request) -> JSONResponse:
 @mcp.custom_route("/healthz", methods=["GET"])
 async def health_check_simple(request: Request) -> PlainTextResponse:
     return PlainTextResponse("OK")
-
-
-api_client = AccuKnoxClient()
 
 
 @mcp.tool()
@@ -163,9 +161,6 @@ async def search_assets(
         - "List AWS assets" → cloud_provider="aws"
         - "Show assets with security details" → detailed=True
     """
-    # Dynamic Authentication Logic
-    # Dynamic Authentication Logic
-    client = api_client  # Default to global client
 
     base_url, token = _get_auth_context(ctx)
     if base_url and token:
@@ -205,7 +200,7 @@ async def data_type_selection() -> dict:
             "Cloud Findings": "Cloud security posture management for AWS, Azure, and GCP: continuously audits cloud resources (IAM, storage, networking, logging, etc.) for insecure or non‑compliant configurations.",
             "Cluster Findings": "Kubernetes cluster configuration assessment: analyzes cluster-level settings (RBAC, namespaces, API server, admission controls, network policies) to detect misconfigurations and weak security controls.",
             "Container Image Findings": "Container image vulnerability and configuration scanner: inspects images and registries for known CVEs, insecure base images, exposed ports, and risky runtime configurations.",
-            "Container Secret": "Secrets detection in container-related artifacts: scans container images, Kubernetes manifests, Helm charts, and config files for embedded secrets such as API keys, passwords, and private keys.",
+            "Container Secret": "Secrets detection in container-related artifacts: scans container images, Kubernetes manifests, Helm charts, and config files for embedded secrets such as API keys, passwords, and private keys.",  # pragma: allowlist secret
             "CX CONTAINERS": "Checkmarx container security: focuses on vulnerabilities and misconfigurations inside container images and Docker artifacts as part of the Checkmarx platform.",
             "CX SAST": "Checkmarx Static Application Security Testing (CxSAST): analyzes application source code to find security flaws such as injection, insecure deserialization, XSS, and authorization issues before deployment.",
             "CX KICS": "Checkmarx KICS (Keep It Cloud Secure): scans infrastructure-as-code templates (Terraform, CloudFormation, Kubernetes, etc.) for misconfigurations and cloud security risks.",
@@ -343,18 +338,44 @@ async def get_finding_filter(
     )
 
 
-if __name__ == "__main__":
-    print("=" * 70)
-    print("🚀 AccuKnox MCP Server")
-    print("=" * 70)
-    print(f"📍 http://0.0.0.0:8000")
-    print(f"🔌 http://0.0.0.0:8000/mcp")
-    print(f"💚 http://0.0.0.0:8000/health")
-    print("=" * 70)
+mode = os.environ.get("MCP_MODE", "http").lower()
+if mode == "http":
+    app = mcp.http_app()
 
-    # Use SSE transport for persistent connection and better client compatibility
-    mcp.run(
-        transport="http",
-        host="0.0.0.0",
-        port=8000,
-    )
+
+def main():
+    """Run the server directly (HTTP or STDIO mode)."""
+    import sys
+
+    if mode == "stdio":
+        logging.info("📘 Running MCP server in STDIO mode")
+        mcp.run()
+    else:
+        # Default: HTTP mode
+        ssl_cert = os.environ.get("SSL_CERT_FILE")
+        ssl_key = os.environ.get("SSL_KEY_FILE")
+
+        host = os.environ.get("HOST", "0.0.0.0")
+        port = int(os.environ.get("PORT", 8000))
+        workers = int(os.environ.get("WORKERS", 1))
+
+        kwargs = {
+            "app": app,
+            "host": host,
+            "port": port,
+            "workers": workers,
+        }
+
+        if ssl_cert and ssl_key:
+            logging.info("SSL Enabled for HTTP server")
+            kwargs["ssl_certfile"] = ssl_cert
+            kwargs["ssl_keyfile"] = ssl_key
+        else:
+            logging.info("SSL Disabled — running over HTTP")
+
+        logging.info(f"🌐 Starting HTTP server on {host}:{port}")
+        uvicorn.run(**kwargs)
+
+
+if __name__ == "__main__":
+    main()
