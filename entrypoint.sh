@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-if [ -n "$SSL_CERT_DATA" ]; then
-    echo "$SSL_CERT_DATA" > /tmp/cert.pem
+if [ -n "$SSL_CERT_FILE" ]; then
+    echo "$SSL_CERT_FILE" > /tmp/cert.pem
     export SSL_CERT_FILE="/tmp/cert.pem"
 fi
 
-if [ -n "$SSL_KEY_DATA" ]; then
-    echo "$SSL_KEY_DATA" > /tmp/key.pem
+if [ -n "$SSL_KEY_FILE" ]; then
+    echo "$SSL_KEY_FILE" > /tmp/key.pem
     export SSL_KEY_FILE="/tmp/key.pem"
 fi
 
