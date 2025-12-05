@@ -21,59 +21,35 @@ from shared.utils.finding import (
 
 def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
     """Helper to extract auth context from request"""
-    default_base_url = "https://cspm.demo.accuknox.com"
 
-    if not ctx:
-        logging.warning("No context provided")
-        return default_base_url, None
-    logging.warning("Context provided")
+    default_base_url = os.getenv(
+        "ACCUKNOX_CSPM_BASE_URL",
+        "https://cspm.demo.accuknox.com",
+    ).rstrip("/")
+    default_token = os.getenv("ACCUKNOX_API_TOKEN")
+
     try:
-        req = ctx.get_http_request()
+        if not ctx:
+            logging.warning("No context provided")
+            return default_base_url, default_token
 
-        print(req.headers)
+        req = ctx.get_http_request()
         if not req:
             logging.warning("No HTTP request found")
-            return default_base_url, None
+            return default_base_url, default_token
 
-        logging.warning("HTTP request found")
-        headers = req.headers
-        token = headers.get("Token")
-        if token:
-            token = token.strip()
-        base_url = headers.get("Base_url")
-
-        logging.warning(
-            f"Extracted from headers - Token: {'Yes' if token else 'No'}, Base URL: {base_url}",
+        headers = req.headers or {}
+        token = headers.get("Token") or default_token
+        base_url = (
+            headers.get("base_url")
+            or req.query_params.get("base_url")
+            or default_base_url
         )
-
-        # Fallback: Check query parameters
-        if not token:
-            logging.warning("Token not found in headers, checking query parameters")
-            token = req.query_params.get("token") or req.query_params.get("api_token")
-        if not base_url:
-            logging.warning("Base URL not found in headers, checking query parameters")
-            base_url = req.query_params.get("base_url")
-
-        # Default to demo URL if still missing
-        if not base_url:
-            logging.warning("Base URL not found, using default URL")
-            base_url = default_base_url
-
-        auth_headers = None
-        if token:
-            # Reconstruct headers for call_api
-            logging.warning("Token found")
-            auth_headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            }
-            return base_url, token
-
-        return base_url, auth_headers
+        return base_url, token
 
     except Exception as e:
         logging.error(f"Failed to extract auth context: {e}")
-        return default_base_url, None
+        return default_base_url, default_token
 
 
 # Initialize FastMCP server for HTTP
@@ -253,8 +229,8 @@ async def get_finding_config(data_type: str | None = None, ctx: Context = None) 
             - order_by:
                 Default sorting field for findings.
     """
-    base_url, headers = _get_auth_context(ctx)
-    return await _get_finding_config(data_type, base_url=base_url, headers=headers)
+    base_url, token = _get_auth_context(ctx)
+    return await _get_finding_config(data_type, base_url=base_url, token=token)
 
 
 @mcp.tool
@@ -294,7 +270,7 @@ async def get_finding(
     """
     extra_filters = _normalize_dict(extra_filters)
     display_fields = _normalize_dict(display_fields)
-    base_url, headers = _get_auth_context(ctx)
+    base_url, token = _get_auth_context(ctx)
     return await _fetch_findings(
         data_type=data_type,
         ordering=ordering,
@@ -305,7 +281,7 @@ async def get_finding(
         group_by=group_by,
         search=search,
         base_url=base_url,
-        headers=headers,
+        token=token,
     )
 
 
@@ -328,13 +304,13 @@ async def get_finding_filter(
     Returns:
         dict: { filter_field, count, results }
     """
-    base_url, headers = _get_auth_context(ctx)
+    base_url, token = _get_auth_context(ctx)
     return await _finding_filter(
         filter_field=filter_field,
         data_type=data_type,
         filter_search=filter_search or "",
         base_url=base_url,
-        headers=headers,
+        token=token,
     )
 
 

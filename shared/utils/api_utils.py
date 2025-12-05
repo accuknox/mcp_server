@@ -18,17 +18,6 @@ if not logger.hasHandlers():
     ch.setFormatter(formatter)
     logger.addHandler(ch)
 
-BASE_URLS = {
-    "cwpp": os.getenv("ACCUKNOX_CWPP_BASE_URL", "").rstrip("/"),
-    "cspm": os.getenv("ACCUKNOX_CSPM_BASE_URL", "").rstrip("/"),
-}
-
-api_token = os.getenv("ACCUKNOX_API_TOKEN", "")
-HEADERS = {
-    "Authorization": f"Bearer {api_token}",
-    "Content-Type": "application/json",
-}
-
 
 async def call_api(
     endpoint: str,
@@ -37,8 +26,8 @@ async def call_api(
     params: Optional[Dict[str, Any]] = None,
     data: Optional[Dict[str, Any]] = None,
     timeout: float = 30.0,
-    base_url_override: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
+    base_url: Optional[str] = "",
+    token: Optional[str] = "",
 ) -> dict:
     """
     Utility function to call GET or POST APIs.
@@ -50,33 +39,32 @@ async def call_api(
         params: Optional query parameters for GET requests.
         data: Optional JSON body for POST requests.
         timeout: Request timeout in seconds.
-        base_url_override: Optional base URL to use instead of the configured one.
-        headers: Optional headers to use instead of the default ones.
+        base_url: Optional base URL to use instead of the configured one.
+        api_token: Optional access token to use instead of the default ones.
 
     Returns:
         Parsed JSON response as a dictionary.
     """
-    if base_url_override:
-        base_url = base_url_override.rstrip("/")
-    else:
-        base_url = BASE_URLS.get(base_url_type)
+    base_url = base_url.rstrip("/")
 
     if not base_url:
-        raise ValueError(f"Base URL for '{base_url_type}' is not configured.")
+        raise ValueError(f"Base URL for is not configured.")
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
 
     url = f"{base_url}/{endpoint.lstrip('/')}"
     logger.info(f"API endpoint {url}, {params}, {data}")
 
-    request_headers = headers if headers is not None else HEADERS
-
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
         try:
             if method.upper() == "GET":
-                response = await client.get(url, headers=request_headers, params=params)
+                response = await client.get(url, headers=headers, params=params)
             elif method.upper() == "POST":
                 response = await client.post(
                     url,
-                    headers=request_headers,
+                    headers=headers,
                     json=data,
                     params=params,
                 )

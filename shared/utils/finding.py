@@ -55,8 +55,8 @@ vul_data_map = {
 
 async def _get_finding_config(
     data_type: str | None = None,
-    base_url: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
+    base_url: str | None = None,
+    token: str | None = None,
 ) -> dict:
     """
     Fetch and return the finding configuration for a given data_type.
@@ -67,8 +67,8 @@ async def _get_finding_config(
     configs = await call_api(
         endpoint,
         method="GET",
-        base_url_override=base_url,
-        headers=headers,
+        base_url=base_url,
+        token=token,
     )
     data_types = []
 
@@ -151,7 +151,7 @@ async def validate_filters(
     data_type: str,
     filter_fields: dict,
     base_url: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
+    token: Optional[str] = None,
 ):
     if not extra_filters:
         return {}, {}
@@ -193,7 +193,7 @@ async def validate_filters(
                     data_type=data_type,
                     filter_search=value,
                     base_url=base_url,
-                    headers=headers,
+                    token=token,
                 ),
             )
 
@@ -230,7 +230,7 @@ async def _fetch_findings(
     group_by: Optional[str] = None,
     search: str = "",
     base_url: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
+    token: Optional[str] = None,
 ) -> dict:
     """
     Internal flexible finding fetcher.
@@ -244,7 +244,7 @@ async def _fetch_findings(
         config = await _get_finding_config(
             data_type,
             base_url=base_url,
-            headers=headers,
+            token=token,
         )
     else:
         config = config_maps.get(data_type)
@@ -264,7 +264,7 @@ async def _fetch_findings(
         data_type,
         filter_fields,
         base_url=base_url,
-        headers=headers,
+        token=token,
     )
     if invalid_filter:
         return invalid_filter
@@ -287,8 +287,8 @@ async def _fetch_findings(
         "api/v1/finding-dashboard",
         method="GET",
         params=params,
-        base_url_override=base_url,
-        headers=headers,
+        base_url=base_url,
+        token=token,
     )
 
     if display_fields is None:
@@ -321,7 +321,7 @@ async def _finding_filter(
     data_type: str,
     filter_search: str = "",
     base_url: Optional[str] = None,
-    headers: Optional[Dict[str, str]] = None,
+    token: Optional[str] = None,
 ) -> dict:
     """
     Fetch filter dropdown values for a given filter_field + data_type.
@@ -341,8 +341,8 @@ async def _finding_filter(
         "api/v1/finding-dashboard/filter-values",
         method="GET",
         params=params,
-        base_url_override=base_url,
-        headers=headers,
+        base_url=base_url,
+        token=token,
     )
 
     return {
