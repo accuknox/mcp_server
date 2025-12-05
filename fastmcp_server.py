@@ -1,16 +1,16 @@
-# server_http.py
-import logging
 import os
-import warnings
-from typing import Any, Dict, Literal, Optional
+from typing import Optional
 
-import httpx
 import uvicorn
 from fastmcp import Context, FastMCP
+from fastmcp.exceptions import ClientError, InvalidSignature, ToolError
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
+from logging_config import logger
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
+from shared.utils.auth_validator import CustomJWTVerifier, _get_auth_context
 from shared.utils.finding import (
     _fetch_findings,
     _finding_filter,
@@ -18,45 +18,44 @@ from shared.utils.finding import (
     _normalize_dict,
 )
 
-
-def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
-    """Helper to extract auth context from request"""
-
-    default_base_url = os.getenv(
-        "ACCUKNOX_CSPM_BASE_URL",
-        "https://cspm.demo.accuknox.com",
-    ).rstrip("/")
-    default_token = os.getenv("ACCUKNOX_API_TOKEN")
-
-    try:
-        if not ctx:
-            logging.warning("No context provided")
-            return default_base_url, default_token
-
-        req = ctx.get_http_request()
-        if not req:
-            logging.warning("No HTTP request found")
-            return default_base_url, default_token
-
-        headers = req.headers or {}
-        token = headers.get("Token") or default_token
-        base_url = (
-            headers.get("base_url")
-            or req.query_params.get("base_url")
-            or default_base_url
-        )
-        return base_url, token
-
-    except Exception as e:
-        logging.error(f"Failed to extract auth context: {e}")
-        return default_base_url, default_token
-
-
-# Initialize FastMCP server for HTTP
 mcp = FastMCP(
     "AccuKnox Assets Server",
     json_response=True,
 )
+verifier = CustomJWTVerifier()
+
+
+class BearerTokenMiddleware(Middleware):
+    async def on_message(self, context: MiddlewareContext, call_next):
+        ctx = context.fastmcp_context
+        base_url, token = _get_auth_context(ctx)
+        if not base_url or not token:
+            raise ToolError(
+                "Missing required authentication parameters: base_url or token",
+            )
+
+        # try:
+        # valid, reason = await verifier.verify(base_url, token)
+        # except Exception as e:
+        # raise ClientError(f"Token check failed unexpectedly: {str(e)}")
+        #
+        # if not valid:
+        # if reason == "expired":
+        # raise InvalidSignature("Token has expired.")
+        # elif reason == "issuer_mismatch":
+        # raise InvalidSignature("Token issuer does not match.")
+        # elif reason == "invalid_signature":
+        # raise InvalidSignature("Token signature is invalid.")
+        # else:
+        # raise ClientError(f"Token invalid: {reason}")
+
+        ctx.set_state("base_url", base_url)
+        ctx.set_state("token", token)
+
+        return await call_next(context)
+
+
+mcp.add_middleware(BearerTokenMiddleware())
 
 
 @mcp.custom_route("/", methods=["GET"])
@@ -138,15 +137,9 @@ async def search_assets(
         - "Show assets with security details" → detailed=True
     """
 
-    base_url, token = _get_auth_context(ctx)
-    if base_url and token:
-        logging.info(f"Initializing AccuKnoxClient with base_url: {base_url}")
-        logging.warning(f"Creating new AccuKnoxClient with provided context {token}")
-        # Extract token from headers if available for AccuKnoxClient
-
-        client = AccuKnoxClient(base_url=base_url, api_token=token)
-    else:
-        logging.warning("Using global api_client (might be unconfigured)")
+    base_url = ctx.get_state("base_url")
+    token = ctx.get_state("token")
+    client = AccuKnoxClient(base_url=base_url, api_token=token)
 
     return await search_assets_tool(
         client,
@@ -229,7 +222,8 @@ async def get_finding_config(data_type: str | None = None, ctx: Context = None) 
             - order_by:
                 Default sorting field for findings.
     """
-    base_url, token = _get_auth_context(ctx)
+    base_url = ctx.get_state("base_url")
+    token = ctx.get_state("token")
     return await _get_finding_config(data_type, base_url=base_url, token=token)
 
 
@@ -268,9 +262,15 @@ async def get_finding(
         - For display: Use only fields available in display_fields configuration
         - Call get_finding_config() first to see available filter_fields and display_fields
     """
-    extra_filters = _normalize_dict(extra_filters)
-    display_fields = _normalize_dict(display_fields)
-    base_url, token = _get_auth_context(ctx)
+    extra_filters, valid = _normalize_dict(extra_filters, "extra_filters")
+    if not valid:
+        return extra_filters
+    display_fields, valid = _normalize_dict(display_fields, "display_fields")
+    if not valid:
+        return display_fields
+
+    base_url = ctx.get_state("base_url")
+    token = ctx.get_state("token")
     return await _fetch_findings(
         data_type=data_type,
         ordering=ordering,
@@ -304,7 +304,8 @@ async def get_finding_filter(
     Returns:
         dict: { filter_field, count, results }
     """
-    base_url, token = _get_auth_context(ctx)
+    base_url = ctx.get_state("base_url")
+    token = ctx.get_state("token")
     return await _finding_filter(
         filter_field=filter_field,
         data_type=data_type,
@@ -324,7 +325,7 @@ def main():
     import sys
 
     if mode == "stdio":
-        logging.info("📘 Running MCP server in STDIO mode")
+        logger.info("📘 Running MCP server in STDIO mode")
         mcp.run()
     else:
         # Default: HTTP mode
@@ -340,16 +341,17 @@ def main():
             "host": host,
             "port": port,
             "workers": workers,
+            "log_level": "info",
         }
 
         if ssl_cert and ssl_key:
-            logging.info("SSL Enabled for HTTP server")
+            logger.info("SSL Enabled for HTTP server")
             kwargs["ssl_certfile"] = ssl_cert
             kwargs["ssl_keyfile"] = ssl_key
         else:
-            logging.info("SSL Disabled — running over HTTP")
+            logger.info("SSL Disabled — running over HTTP")
 
-        logging.info(f"🌐 Starting HTTP server on {host}:{port}")
+        logger.info(f"🌐 Starting HTTP server on {host}:{port}")
         uvicorn.run(**kwargs)
 
 

@@ -5,3 +5,4 @@ fastapi
 uvicorn
 sse-starlette
 fastmcp
+python-jose==3.5.0

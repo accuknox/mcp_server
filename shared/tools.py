@@ -3,11 +3,12 @@ Tool Implementations
 Shared between stdio and HTTP servers
 """
 
-import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
+
+from logging_config import logger
 
 from .api import AccuKnoxClient
 
@@ -223,7 +224,7 @@ async def search_assets_tool(
     present_on_date_before: Optional[str] = None,
 ) -> str:
     """Search assets tool implementation"""
-    logging.warning(f" client details {client.api_token} , {client.base_url}")
+    # logger.warning(f" client details {client.api_token} , {client.base_url}")
 
     try:
         # # If requesting deployed models statistics

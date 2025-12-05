@@ -1,22 +1,10 @@
-import logging
 import os
 from typing import Any, Dict, Literal, Optional
 
 import httpx
 from httpx import ConnectTimeout, HTTPStatusError, ReadTimeout
 
-# Create a module-level logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-# Optional: add a console handler if not already configured
-if not logger.hasHandlers():
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+from logging_config import logger
 
 
 async def call_api(

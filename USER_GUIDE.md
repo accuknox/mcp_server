@@ -165,8 +165,8 @@ To use the `fastmcp` server in HTTP mode (SSE):
           "url": "http://localhost:8000/mcp",
           "type": "http",
           "headers": {
-            "Token": "YOUR_API_TOKEN",
-            "Base_url": "https://cspm.demo.accuknox.com"
+            "token": "YOUR_API_TOKEN",
+            "base_url": "https://cspm.demo.accuknox.com"
           }
         }
       }

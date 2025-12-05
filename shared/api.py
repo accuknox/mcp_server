@@ -3,12 +3,13 @@ AccuKnox API Client
 Handles all API interactions with AccuKnox CSPM
 """
 
-import logging
 import os
 from typing import Any, Dict, List, Optional
 
 import httpx
 from dotenv import load_dotenv
+
+from logging_config import logger
 
 # https://cspm.demo.accuknox.com/api/v1/assets?page=1&page_size=20&search=&depth=3&ordering=name&label_name=K8SJOB&present_on_date_after=2025-11-22&present_on_date_before=2025-11-24
 
@@ -20,11 +21,11 @@ class AccuKnoxClient:
 
     def __init__(self, base_url: Optional[str] = None, api_token: Optional[str] = None):
         self.base_url = (base_url or os.getenv("ACCUKNOX_BASE_URL", "")).rstrip("/")
-        logging.info(f"AccuKnoxClient initialized with base_url: '{self.base_url}'")
+        # logger.info(f"AccuKnoxClient initialized with base_url: '{self.base_url}'")
         self.api_token = api_token or os.getenv("ACCUKNOX_API_TOKEN", "")
-        logging.warning(
-            f"AccuKnoxClient initialized with api_token: '{self.api_token}' , base_url: '{self.base_url}'",
-        )
+        # logging.warning(
+        #     f"AccuKnoxClient initialized with api_token: '{self.api_token}' , base_url: '{self.base_url}'",
+        # )
         self.headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
@@ -46,7 +47,7 @@ class AccuKnoxClient:
         """Fetch assets from AccuKnox"""
 
         endpoint = f"{self.base_url}/api/v1/assets"
-        logging.warning(f"Fetching assets from endpoint: {endpoint}")
+        # logger.warning(f"Fetching assets from endpoint: {endpoint}")
         params = {"page": page, "page_size": page_size}
 
         if asset_id:
@@ -66,8 +67,8 @@ class AccuKnoxClient:
             params["present_on_date_before"] = present_on_date_before
 
         async with httpx.AsyncClient(verify=False) as client:
-            logging.warning(
-                f"Making request to {endpoint} with tokens {self.api_token} and params {params}",
+            logger.info(
+                f"API endpoint: {endpoint},  params: {params}",
             )
             response = await client.get(
                 endpoint,
