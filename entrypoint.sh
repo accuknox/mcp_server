@@ -1,30 +1,20 @@
 #!/bin/sh
 set -e
 
-# Default host/port/workers
-HOST=${HOST:-0.0.0.0}
-PORT=${PORT:-8000}
-WORKERS=${WORKERS:-2}
-
-# Optional SSL
-SSL_ARGS=""
-if [ -n "$SSL_CERT_FILE" ] && [ -n "$SSL_KEY_FILE" ]; then
-    SSL_ARGS="--ssl-certfile $SSL_CERT_FILE --ssl-keyfile $SSL_KEY_FILE"
+if [ -n "$SSL_CERT_DATA" ]; then
+    echo "$SSL_CERT_DATA" > /tmp/cert.pem
+    export SSL_CERT_FILE="/tmp/cert.pem"
 fi
 
-echo "Starting FastMCP server..."
-echo "Host: $HOST"
-echo "Port: $PORT"
-echo "Workers: $WORKERS"
-if [ -n "$SSL_ARGS" ]; then
-    echo "SSL enabled"
-else
-    echo "SSL disabled"
+if [ -n "$SSL_KEY_DATA" ]; then
+    echo "$SSL_KEY_DATA" > /tmp/key.pem
+    export SSL_KEY_FILE="/tmp/key.pem"
 fi
 
-# Run Uvicorn
-exec uvicorn fastmcp_server:app \
-    --host $HOST \
-    --port $PORT \
-    --workers $WORKERS \
-    --log-level info $SSL_ARGS
+echo "🔧 ENTRYPOINT SETTINGS"
+echo "HOST: ${HOST:-0.0.0.0}"
+echo "PORT: ${PORT:-8000}"
+echo "WORKERS: ${WORKERS:-1}"
+[ -n "$SSL_CERT_FILE" ] && echo "SSL: enabled" || echo "SSL: disabled"
+
+exec python fastmcp_server.py

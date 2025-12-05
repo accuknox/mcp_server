@@ -79,7 +79,6 @@ def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
 # Initialize FastMCP server for HTTP
 mcp = FastMCP(
     "AccuKnox Assets Server",
-    stateless_http=True,
     json_response=True,
 )
 
@@ -356,21 +355,23 @@ def main():
         ssl_cert = os.environ.get("SSL_CERT_FILE")
         ssl_key = os.environ.get("SSL_KEY_FILE")
 
-        host = "0.0.0.0"
+        host = os.environ.get("HOST", "0.0.0.0")
         port = int(os.environ.get("PORT", 8000))
+        workers = int(os.environ.get("WORKERS", 1))
 
         kwargs = {
             "app": app,
             "host": host,
             "port": port,
+            "workers": workers,
         }
 
         if ssl_cert and ssl_key:
-            logging.info("🔐 SSL Enabled for HTTP server")
-            # kwargs["ssl_certfile"] = ssl_cert
-            # kwargs["ssl_keyfile"] = ssl_key
+            logging.info("SSL Enabled for HTTP server")
+            kwargs["ssl_certfile"] = ssl_cert
+            kwargs["ssl_keyfile"] = ssl_key
         else:
-            logging.info("🔓 SSL Disabled — running over HTTP")
+            logging.info("SSL Disabled — running over HTTP")
 
         logging.info(f"🌐 Starting HTTP server on {host}:{port}")
         uvicorn.run(**kwargs)
