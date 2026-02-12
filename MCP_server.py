@@ -4,6 +4,7 @@ AccuKnox MCP Server - stdio transport
 For use with Gemini CLI and other stdio-based clients
 """
 
+import os
 import signal
 import sys
 from typing import Optional
@@ -11,6 +12,10 @@ from typing import Optional
 from fastmcp import FastMCP
 
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
+
+# Read default include_endpoint setting from environment (supports both cases)
+_include_endpoint_env = os.environ.get("INCLUDE_ENDPOINT") or os.environ.get("include_endpoint", "false")
+DEFAULT_INCLUDE_ENDPOINT = _include_endpoint_env.lower() in ("true", "1", "yes")
 
 # Global client instance
 api_client = AccuKnoxClient()
@@ -44,6 +49,7 @@ async def search_assets(
     deployed: Optional[bool] = None,
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
+    include_endpoint: Optional[bool] = None,
 ) -> str:
     """
     READ-ONLY: Search and filter cloud infrastructure assets.
@@ -62,6 +68,7 @@ async def search_assets(
         deployed: Optional[bool]. Set to True for deployed models, False for undeployed models, or None (default) to ignore deployment status.
         present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
         present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
+        include_endpoint: If True, includes the API endpoint URL in the response
 
     Returns:
         Formatted asset list, count, or model statistics
@@ -72,7 +79,11 @@ async def search_assets(
         - "Show me Container assets" → type_category="Container"
         - "List AWS assets" → cloud_provider="aws"
         - "Show assets with security details" → detailed=True
+        - "Show assets with endpoint URL" → include_endpoint=True
     """
+    # Use environment default if not explicitly specified
+    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+
     return await search_assets_tool(
         api_client,
         asset_id,
@@ -87,11 +98,12 @@ async def search_assets(
         deployed,
         present_on_date_after,
         present_on_date_before,
+        _include_endpoint,
     )
 
 
 @mcp.tool()
-async def get_model_vulnerabilities() -> str:
+async def get_model_vulnerabilities(include_endpoint: Optional[bool] = None) -> str:
     """
     READ-ONLY: Get AI/ML model security vulnerabilities summary.
 
@@ -102,15 +114,22 @@ async def get_model_vulnerabilities() -> str:
 
     Shows breakdown by severity: Critical, High, Medium, Low
 
+    Args:
+        include_endpoint: If True, includes the API endpoint URL in the response
+
     Returns:
         Formatted vulnerability report with severity breakdown and recommendations
 
     Examples:
         - "Show me model vulnerabilities"
         - "What security issues do my AI models have?"
-        - "List all model security problems
+        - "List all model security problems"
+        - "Show vulnerabilities with endpoint URL" → include_endpoint=True
     """
-    return await get_model_vulnerabilities_tool(api_client)
+    # Use environment default if not explicitly specified
+    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+
+    return await get_model_vulnerabilities_tool(api_client, include_endpoint=_include_endpoint)
 
 
 if __name__ == "__main__":

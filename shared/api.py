@@ -43,6 +43,7 @@ class AccuKnoxClient:
         present_on_date_before: Optional[str] = None,
         page: int = 1,
         page_size: int = 100,
+        include_endpoint: bool = False,
     ) -> dict:
         """Fetch assets from AccuKnox"""
 
@@ -77,9 +78,14 @@ class AccuKnoxClient:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
 
-    async def fetch_model_vulnerabilities(self) -> dict:
+            if include_endpoint:
+                result["endpoint_url"] = str(response.url)
+
+            return result
+
+    async def fetch_model_vulnerabilities(self, include_endpoint: bool = False) -> dict:
         """Fetch model vulnerability summary"""
 
         endpoint = (
@@ -94,12 +100,18 @@ class AccuKnoxClient:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+
+            if include_endpoint:
+                result["endpoint_url"] = str(response.url)
+
+            return result
 
     async def fetch_model_stats(
         self,
         last_seen_after: Optional[str] = None,
         last_seen_before: Optional[str] = None,
+        include_endpoint: bool = False,
     ) -> dict:
         """Fetch model statistics (deployed vs not deployed)"""
 
@@ -119,7 +131,12 @@ class AccuKnoxClient:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+
+            if include_endpoint:
+                result["endpoint_url"] = str(response.url)
+
+            return result
 
     async def fetch_ai_assets(
         self,
@@ -129,6 +146,7 @@ class AccuKnoxClient:
         deployed: Optional[bool] = None,
         page: int = 1,
         page_size: int = 100,
+        include_endpoint: bool = False,
     ) -> dict:
         """Fetch AI assets using the new API endpoint with time-based filtering"""
         endpoint = f"{self.base_url}/api/v1/modelknox/ai-assets/"
@@ -199,4 +217,9 @@ class AccuKnoxClient:
                 timeout=30.0,
             )
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+
+            if include_endpoint:
+                result["endpoint_url"] = str(response.url)
+
+            return result

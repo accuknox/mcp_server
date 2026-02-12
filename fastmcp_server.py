@@ -18,6 +18,10 @@ from shared.utils.finding import (
     _normalize_dict,
 )
 
+# Read default include_endpoint setting from environment (supports both cases)
+_include_endpoint_env = os.environ.get("INCLUDE_ENDPOINT") or os.environ.get("include_endpoint", "false")
+DEFAULT_INCLUDE_ENDPOINT = _include_endpoint_env.lower() in ("true", "1", "yes")
+
 mcp = FastMCP(
     "AccuKnox Assets Server",
     json_response=True,
@@ -105,6 +109,7 @@ async def search_assets(
     deployed: Optional[bool] = None,
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
+    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> str:
     """
@@ -124,6 +129,7 @@ async def search_assets(
         deployed: Optional[bool]. Set to True for deployed models, False for undeployed models, or None (default) to ignore deployment status.
         present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
         present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
+        include_endpoint: If True, includes the API endpoint URL in the response
         ctx: FastMCP Context (injected automatically)
 
     Returns:
@@ -135,11 +141,15 @@ async def search_assets(
         - "Show me Container assets" → type_category="Container"
         - "List AWS assets" → cloud_provider="aws"
         - "Show assets with security details" → detailed=True
+        - "Show assets with endpoint URL" → include_endpoint=True
     """
 
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
     client = AccuKnoxClient(base_url=base_url, api_token=token)
+
+    # Use environment default if not explicitly specified
+    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
 
     return await search_assets_tool(
         client,
@@ -155,6 +165,7 @@ async def search_assets(
         deployed,
         present_on_date_after,
         present_on_date_before,
+        _include_endpoint,
     )
 
 
@@ -194,7 +205,11 @@ async def data_type_selection() -> dict:
 
 
 @mcp.tool
-async def get_finding_config(data_type: str | None = None, ctx: Context = None) -> dict:
+async def get_finding_config(
+    data_type: str | None = None,
+    include_endpoint: Optional[bool] = None,
+    ctx: Context = None,
+) -> dict:
     """
     MCP Tool: Retrieve finding configuration metadata for a given data type.
 
@@ -206,6 +221,7 @@ async def get_finding_config(data_type: str | None = None, ctx: Context = None) 
               - "Cloud Findings"
               - "Container Image Findings"
               - "STIG Findings"
+        include_endpoint: If True, includes the API endpoint URL in the response
     Returns:
         dict:
             Configuration details for the requested data type, including:
@@ -221,10 +237,22 @@ async def get_finding_config(data_type: str | None = None, ctx: Context = None) 
 
             - order_by:
                 Default sorting field for findings.
+
+            - endpoint_url (if include_endpoint=True):
+                The API endpoint URL used to fetch the data.
     """
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
-    return await _get_finding_config(data_type, base_url=base_url, token=token)
+
+    # Use environment default if not explicitly specified
+    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+
+    return await _get_finding_config(
+        data_type,
+        base_url=base_url,
+        token=token,
+        include_endpoint=_include_endpoint,
+    )
 
 
 @mcp.tool
@@ -237,6 +265,7 @@ async def get_finding(
     display_fields: dict | str | None = None,
     group_by: Optional[str] = None,
     search: str = "",
+    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> dict:
     """
@@ -253,6 +282,7 @@ async def get_finding(
                         display_fields (if None → count only)
         group_by: Optional grouping field
         search: Optional search string
+        include_endpoint: If True, includes the API endpoint URL in the response
 
     Returns:
         dict: API response with cleaned results and count
@@ -271,6 +301,10 @@ async def get_finding(
 
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
+
+    # Use environment default if not explicitly specified
+    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+
     return await _fetch_findings(
         data_type=data_type,
         ordering=ordering,
@@ -282,6 +316,7 @@ async def get_finding(
         search=search,
         base_url=base_url,
         token=token,
+        include_endpoint=_include_endpoint,
     )
 
 
@@ -290,6 +325,7 @@ async def get_finding_filter(
     filter_field: str,
     data_type: str,
     filter_search: Optional[str] = "",
+    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> dict:
     """
@@ -300,18 +336,24 @@ async def get_finding_filter(
         filter_field (str): The field to fetch filter values for.
         data_type (str): Human-readable finding type (e.g., "Cloud Findings").
         filter_search (str): Optional search string for narrowing values.
+        include_endpoint: If True, includes the API endpoint URL in the response.
 
     Returns:
-        dict: { filter_field, count, results }
+        dict: { filter_field, count, results, endpoint_url (if include_endpoint=True) }
     """
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
+
+    # Use environment default if not explicitly specified
+    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+
     return await _finding_filter(
         filter_field=filter_field,
         data_type=data_type,
         filter_search=filter_search or "",
         base_url=base_url,
         token=token,
+        include_endpoint=_include_endpoint,
     )
 
 

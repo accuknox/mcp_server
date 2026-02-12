@@ -45,6 +45,7 @@ async def _get_finding_config(
     data_type: str | None = None,
     base_url: str | None = None,
     token: str | None = None,
+    include_endpoint: bool = False,
 ) -> dict:
     """
     Fetch and return the finding configuration for a given data_type.
@@ -52,12 +53,22 @@ async def _get_finding_config(
     """
 
     endpoint = "api/v1/vulnerability-configs/filters-data-config"
-    configs = await call_api(
+    response = await call_api(
         endpoint,
         method="GET",
         base_url=base_url,
         token=token,
+        include_endpoint=include_endpoint,
     )
+
+    # Handle wrapped response when include_endpoint=True
+    endpoint_url = None
+    if isinstance(response, dict) and "data" in response:
+        endpoint_url = response.get("endpoint_url")
+        configs = response["data"]
+    else:
+        configs = response
+
     data_types = []
 
     for cfg in configs:
@@ -90,7 +101,12 @@ async def _get_finding_config(
         return {
             "data_type": f"No available {data_type} data type. Available: {data_types}",
         }
-    return config_maps.get(data_type)
+
+    result = config_maps.get(data_type).copy()
+    if endpoint_url:
+        result["endpoint_url"] = endpoint_url
+
+    return result
 
 
 def validate_fields(
@@ -225,6 +241,7 @@ async def _fetch_findings(
     search: str = "",
     base_url: Optional[str] = None,
     token: Optional[str] = None,
+    include_endpoint: bool = False,
 ) -> dict:
     """
     Internal flexible finding fetcher.
@@ -283,17 +300,26 @@ async def _fetch_findings(
         params=params,
         base_url=base_url,
         token=token,
+        include_endpoint=include_endpoint,
     )
 
+    endpoint_url = response.pop("endpoint_url", None) if include_endpoint else None
+
     if display_fields is None:
-        return {"count": response.get("count", 0)}
+        result = {"count": response.get("count", 0)}
+        if endpoint_url:
+            result["endpoint_url"] = endpoint_url
+        return result
 
     if group_by:
-        return {
+        result = {
             "group_by": group_by,
             "count": response.get("count"),
             "results": response.get("results", []),
         }
+        if endpoint_url:
+            result["endpoint_url"] = endpoint_url
+        return result
 
     # Validate display fields
     default_display = config.get("display_fields", {})
@@ -303,11 +329,15 @@ async def _fetch_findings(
         for item in response.get("results", {}).get("data", {})
     ]
 
-    return {
+    result = {
         "count": response.get("count", 0),
         "page": page,
         "results": cleaned_results,
     }
+    if endpoint_url:
+        result["endpoint_url"] = endpoint_url
+
+    return result
 
 
 async def _finding_filter(
@@ -316,6 +346,7 @@ async def _finding_filter(
     filter_search: str = "",
     base_url: Optional[str] = None,
     token: Optional[str] = None,
+    include_endpoint: bool = False,
 ) -> dict:
     """
     Fetch filter dropdown values for a given filter_field + data_type.
@@ -331,16 +362,23 @@ async def _finding_filter(
         "page": 1,
     }
 
-    result = await call_api(
+    api_result = await call_api(
         "api/v1/finding-dashboard/filter-values",
         method="GET",
         params=params,
         base_url=base_url,
         token=token,
+        include_endpoint=include_endpoint,
     )
 
-    return {
+    endpoint_url = api_result.pop("endpoint_url", None) if include_endpoint else None
+
+    result = {
         "filter_field": filter_field,
-        "count": result.get("count", 0),
-        "results": result.get("results", []),
+        "count": api_result.get("count", 0),
+        "results": api_result.get("results", []),
     }
+    if endpoint_url:
+        result["endpoint_url"] = endpoint_url
+
+    return result
