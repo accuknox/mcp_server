@@ -62,9 +62,11 @@ async def _get_finding_config(
     )
 
     # Handle wrapped response when include_endpoint=True
-    endpoint_url = None
-    if isinstance(response, dict) and "data" in response:
-        endpoint_url = response.get("endpoint_url")
+    endpoint_info = None
+    if isinstance(response, dict) and "data" in response and "endpoint_info" in response:
+        endpoint_info = response.get("endpoint_info")
+        configs = response["data"]
+    elif isinstance(response, dict) and "data" in response:
         configs = response["data"]
     else:
         configs = response
@@ -103,8 +105,8 @@ async def _get_finding_config(
         }
 
     result = config_maps.get(data_type).copy()
-    if endpoint_url:
-        result["endpoint_url"] = endpoint_url
+    if endpoint_info:
+        result["endpoint_info"] = endpoint_info
 
     return result
 
@@ -303,12 +305,12 @@ async def _fetch_findings(
         include_endpoint=include_endpoint,
     )
 
-    endpoint_url = response.pop("endpoint_url", None) if include_endpoint else None
+    endpoint_info = response.pop("endpoint_info", None) if include_endpoint else None
 
     if display_fields is None:
         result = {"count": response.get("count", 0)}
-        if endpoint_url:
-            result["endpoint_url"] = endpoint_url
+        if endpoint_info:
+            result["endpoint_info"] = endpoint_info
         return result
 
     if group_by:
@@ -317,8 +319,8 @@ async def _fetch_findings(
             "count": response.get("count"),
             "results": response.get("results", []),
         }
-        if endpoint_url:
-            result["endpoint_url"] = endpoint_url
+        if endpoint_info:
+            result["endpoint_info"] = endpoint_info
         return result
 
     # Validate display fields
@@ -334,8 +336,8 @@ async def _fetch_findings(
         "page": page,
         "results": cleaned_results,
     }
-    if endpoint_url:
-        result["endpoint_url"] = endpoint_url
+    if endpoint_info:
+        result["endpoint_info"] = endpoint_info
 
     return result
 
@@ -371,14 +373,14 @@ async def _finding_filter(
         include_endpoint=include_endpoint,
     )
 
-    endpoint_url = api_result.pop("endpoint_url", None) if include_endpoint else None
+    endpoint_info = api_result.pop("endpoint_info", None) if include_endpoint else None
 
     result = {
         "filter_field": filter_field,
         "count": api_result.get("count", 0),
         "results": api_result.get("results", []),
     }
-    if endpoint_url:
-        result["endpoint_url"] = endpoint_url
+    if endpoint_info:
+        result["endpoint_info"] = endpoint_info
 
     return result

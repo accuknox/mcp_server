@@ -34,7 +34,7 @@ async def call_api(
 
     Returns:
         Parsed JSON response as a dictionary. If include_endpoint is True,
-        adds an 'endpoint_url' key with the full request URL.
+        adds an 'endpoint_info' dict with method, endpoint_url, and request_body (for POST).
     """
     base_url = base_url.rstrip("/")
 
@@ -68,12 +68,19 @@ async def call_api(
             if include_endpoint:
                 # Get the actual URL with query params from the response
                 full_url = str(response.url)
+                endpoint_info = {
+                    "endpoint_url": full_url,
+                    "method": method.upper(),
+                }
+                if method.upper() == "POST" and data:
+                    endpoint_info["request_body"] = data
+
                 # Handle both dict and list responses
                 if isinstance(result, dict):
-                    result["endpoint_url"] = full_url
+                    result["endpoint_info"] = endpoint_info
                 else:
                     # For list responses, wrap in a dict
-                    result = {"data": result, "endpoint_url": full_url}
+                    result = {"data": result, "endpoint_info": endpoint_info}
 
             return result
 

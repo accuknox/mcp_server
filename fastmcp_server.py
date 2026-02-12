@@ -238,8 +238,8 @@ async def get_finding_config(
             - order_by:
                 Default sorting field for findings.
 
-            - endpoint_url (if include_endpoint=True):
-                The API endpoint URL used to fetch the data.
+            - endpoint_info (if include_endpoint=True):
+                Dict with method, endpoint_url, and request_body (for POST) of the API call.
     """
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
@@ -339,7 +339,7 @@ async def get_finding_filter(
         include_endpoint: If True, includes the API endpoint URL in the response.
 
     Returns:
-        dict: { filter_field, count, results, endpoint_url (if include_endpoint=True) }
+        dict: { filter_field, count, results, endpoint_info (if include_endpoint=True) }
     """
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")

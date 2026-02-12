@@ -81,7 +81,10 @@ class AccuKnoxClient:
             result = response.json()
 
             if include_endpoint:
-                result["endpoint_url"] = str(response.url)
+                result["endpoint_info"] = {
+                    "endpoint_url": str(response.url),
+                    "method": "GET",
+                }
 
             return result
 
@@ -103,7 +106,10 @@ class AccuKnoxClient:
             result = response.json()
 
             if include_endpoint:
-                result["endpoint_url"] = str(response.url)
+                result["endpoint_info"] = {
+                    "endpoint_url": str(response.url),
+                    "method": "GET",
+                }
 
             return result
 
@@ -134,7 +140,10 @@ class AccuKnoxClient:
             result = response.json()
 
             if include_endpoint:
-                result["endpoint_url"] = str(response.url)
+                result["endpoint_info"] = {
+                    "endpoint_url": str(response.url),
+                    "method": "GET",
+                }
 
             return result
 
@@ -220,6 +229,10 @@ class AccuKnoxClient:
             result = response.json()
 
             if include_endpoint:
-                result["endpoint_url"] = str(response.url)
+                result["endpoint_info"] = {
+                    "endpoint_url": str(response.url),
+                    "method": "POST",
+                    "request_body": payload,
+                }
 
             return result
