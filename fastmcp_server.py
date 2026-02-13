@@ -55,6 +55,7 @@ class BearerTokenMiddleware(Middleware):
 
         ctx.set_state("base_url", base_url)
         ctx.set_state("token", token)
+        ctx.set_state("include_endpoint", DEFAULT_INCLUDE_ENDPOINT)
 
         return await call_next(context)
 
@@ -109,7 +110,6 @@ async def search_assets(
     deployed: Optional[bool] = None,
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
-    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> str:
     """
@@ -129,7 +129,6 @@ async def search_assets(
         deployed: Optional[bool]. Set to True for deployed models, False for undeployed models, or None (default) to ignore deployment status.
         present_on_date_after: Filter assets present on or after this date. Format: YYYY-MM-DD. Defaults to two days ago if not provided.
         present_on_date_before: Filter assets present on or before this date. Format: YYYY-MM-DD. Defaults to now if not provided
-        include_endpoint: If True, includes the API endpoint URL in the response
         ctx: FastMCP Context (injected automatically)
 
     Returns:
@@ -141,15 +140,12 @@ async def search_assets(
         - "Show me Container assets" → type_category="Container"
         - "List AWS assets" → cloud_provider="aws"
         - "Show assets with security details" → detailed=True
-        - "Show assets with endpoint URL" → include_endpoint=True
     """
 
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
     client = AccuKnoxClient(base_url=base_url, api_token=token)
-
-    # Use environment default if not explicitly specified
-    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    include_endpoint = ctx.get_state("include_endpoint")
 
     return await search_assets_tool(
         client,
@@ -165,7 +161,7 @@ async def search_assets(
         deployed,
         present_on_date_after,
         present_on_date_before,
-        _include_endpoint,
+        include_endpoint,
     )
 
 
@@ -207,7 +203,6 @@ async def data_type_selection() -> dict:
 @mcp.tool
 async def get_finding_config(
     data_type: str | None = None,
-    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> dict:
     """
@@ -221,7 +216,6 @@ async def get_finding_config(
               - "Cloud Findings"
               - "Container Image Findings"
               - "STIG Findings"
-        include_endpoint: If True, includes the API endpoint URL in the response
     Returns:
         dict:
             Configuration details for the requested data type, including:
@@ -237,21 +231,16 @@ async def get_finding_config(
 
             - order_by:
                 Default sorting field for findings.
-
-            - endpoint_info (if include_endpoint=True):
-                Dict with method, endpoint_url, and request_body (for POST) of the API call.
     """
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
-
-    # Use environment default if not explicitly specified
-    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    include_endpoint = ctx.get_state("include_endpoint")
 
     return await _get_finding_config(
         data_type,
         base_url=base_url,
         token=token,
-        include_endpoint=_include_endpoint,
+        include_endpoint=include_endpoint,
     )
 
 
@@ -265,7 +254,6 @@ async def get_finding(
     display_fields: dict | str | None = None,
     group_by: Optional[str] = None,
     search: str = "",
-    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> dict:
     """
@@ -282,7 +270,6 @@ async def get_finding(
                         display_fields (if None → count only)
         group_by: Optional grouping field
         search: Optional search string
-        include_endpoint: If True, includes the API endpoint URL in the response
 
     Returns:
         dict: API response with cleaned results and count
@@ -301,9 +288,7 @@ async def get_finding(
 
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
-
-    # Use environment default if not explicitly specified
-    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    include_endpoint = ctx.get_state("include_endpoint")
 
     return await _fetch_findings(
         data_type=data_type,
@@ -316,7 +301,7 @@ async def get_finding(
         search=search,
         base_url=base_url,
         token=token,
-        include_endpoint=_include_endpoint,
+        include_endpoint=include_endpoint,
     )
 
 
@@ -325,7 +310,6 @@ async def get_finding_filter(
     filter_field: str,
     data_type: str,
     filter_search: Optional[str] = "",
-    include_endpoint: Optional[bool] = None,
     ctx: Context = None,
 ) -> dict:
     """
@@ -336,16 +320,13 @@ async def get_finding_filter(
         filter_field (str): The field to fetch filter values for.
         data_type (str): Human-readable finding type (e.g., "Cloud Findings").
         filter_search (str): Optional search string for narrowing values.
-        include_endpoint: If True, includes the API endpoint URL in the response.
 
     Returns:
-        dict: { filter_field, count, results, endpoint_info (if include_endpoint=True) }
+        dict: { filter_field, count, results }
     """
     base_url = ctx.get_state("base_url")
     token = ctx.get_state("token")
-
-    # Use environment default if not explicitly specified
-    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    include_endpoint = ctx.get_state("include_endpoint")
 
     return await _finding_filter(
         filter_field=filter_field,
@@ -353,7 +334,7 @@ async def get_finding_filter(
         filter_search=filter_search or "",
         base_url=base_url,
         token=token,
-        include_endpoint=_include_endpoint,
+        include_endpoint=include_endpoint,
     )
 
 
