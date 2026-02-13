@@ -83,21 +83,28 @@ class CustomJWTVerifier:
             return False, "error"
 
 
-def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
+def _get_include_endpoint() -> bool:
+    """Read include_endpoint setting from environment."""
+    env_val = os.environ.get("INCLUDE_ENDPOINT") or os.environ.get("include_endpoint", "false")
+    return env_val.lower() in ("true", "1", "yes")
+
+
+def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str], bool]:
     """Helper to extract auth context from request"""
 
     default_base_url = os.getenv("ACCUKNOX_CSPM_BASE_URL")
     default_token = os.getenv("ACCUKNOX_API_TOKEN")
+    include_endpoint = _get_include_endpoint()
 
     try:
         if not ctx:
             logger.warning("No context provided")
-            return default_base_url, default_token
+            return default_base_url, default_token, include_endpoint
 
         req = ctx.get_http_request()
         if not req:
             logger.warning("No HTTP request found")
-            return default_base_url, default_token
+            return default_base_url, default_token, include_endpoint
 
         headers = req.headers or {}
         token = headers.get("Token") or default_token
@@ -106,8 +113,8 @@ def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str]]:
             or req.query_params.get("base_url")
             or default_base_url
         )
-        return base_url, token
+        return base_url, token, include_endpoint
 
     except Exception as e:
         logger.error(f"Failed to extract auth context: {e}")
-        return default_base_url, default_token
+        return default_base_url, default_token, include_endpoint

@@ -18,10 +18,6 @@ from shared.utils.finding import (
     _normalize_dict,
 )
 
-# Read default include_endpoint setting from environment (supports both cases)
-_include_endpoint_env = os.environ.get("INCLUDE_ENDPOINT") or os.environ.get("include_endpoint", "false")
-DEFAULT_INCLUDE_ENDPOINT = _include_endpoint_env.lower() in ("true", "1", "yes")
-
 mcp = FastMCP(
     "AccuKnox Assets Server",
     json_response=True,
@@ -32,7 +28,7 @@ verifier = CustomJWTVerifier()
 class BearerTokenMiddleware(Middleware):
     async def on_message(self, context: MiddlewareContext, call_next):
         ctx = context.fastmcp_context
-        base_url, token = _get_auth_context(ctx)
+        base_url, token, include_endpoint = _get_auth_context(ctx)
         if not base_url or not token:
             raise ToolError(
                 "Missing required authentication parameters: base_url or token",
@@ -55,7 +51,7 @@ class BearerTokenMiddleware(Middleware):
 
         ctx.set_state("base_url", base_url)
         ctx.set_state("token", token)
-        ctx.set_state("include_endpoint", DEFAULT_INCLUDE_ENDPOINT)
+        ctx.set_state("include_endpoint", include_endpoint)
 
         return await call_next(context)
 
