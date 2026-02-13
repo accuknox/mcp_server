@@ -13,30 +13,14 @@ from logging_config import logger
 from .api import AccuKnoxClient
 
 
-def _format_endpoint_info(endpoint_info: dict) -> str:
-    """Format endpoint info dict into a readable string"""
-    if not endpoint_info:
-        return ""
-    parts = [f"\n---\nMethod: {endpoint_info.get('method', 'N/A')}"]
-    parts.append(f"Endpoint: {endpoint_info.get('endpoint_url', 'N/A')}")
-    if "request_body" in endpoint_info:
-        import json
-        parts.append(f"Request Body: {json.dumps(endpoint_info['request_body'], indent=2)}")
-    return "\n".join(parts) + "\n"
-
-
 def format_asset_list(
     assets: list,
     total_count: int,
     detailed: bool = False,
-    endpoint_info: dict = None,
 ) -> str:
     """Format asset list for display"""
     if not assets:
-        result = "No assets found."
-        if endpoint_info:
-            result += f"\n{_format_endpoint_info(endpoint_info)}"
-        return result
+        return "No assets found."
 
     result = f"Found {len(assets)} assets (Total: {total_count}):\n\n"
 
@@ -76,13 +60,10 @@ def format_asset_list(
 
         result += "\n"
 
-    if endpoint_info:
-        result += _format_endpoint_info(endpoint_info)
-
     return result
 
 
-def format_model_vulnerabilities(data: dict, endpoint_info: dict = None) -> str:
+def format_model_vulnerabilities(data: dict) -> str:
     """Format model vulnerabilities"""
 
     ml_issues = data.get("ml_model_issues", [])
@@ -136,9 +117,6 @@ def format_model_vulnerabilities(data: dict, endpoint_info: dict = None) -> str:
             )
             result += f"   {icon} {severity}: {count}\n"
 
-    if endpoint_info:
-        result += _format_endpoint_info(endpoint_info)
-
     return result
 
 
@@ -168,7 +146,7 @@ def format_model_vulnerabilities(data: dict, endpoint_info: dict = None) -> str:
 #     return result
 
 
-def format_ai_assets_stats(data: dict, endpoint_info: dict = None) -> str:
+def format_ai_assets_stats(data: dict) -> str:
     """Format AI assets statistics (deployed vs not deployed)"""
 
     # The API response structure:
@@ -231,9 +209,6 @@ def format_ai_assets_stats(data: dict, endpoint_info: dict = None) -> str:
         if len(undeployed_models) > display_limit:
             result += f"      ... and {len(undeployed_models) - display_limit} more.\n"
 
-    if endpoint_info:
-        result += _format_endpoint_info(endpoint_info)
-
     return result
 
 
@@ -252,7 +227,7 @@ async def search_assets_tool(
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
     include_endpoint: bool = False,
-) -> str:
+) -> str | dict:
     """Search assets tool implementation"""
     # logger.warning(f" client details {client.api_token} , {client.base_url}")
 
@@ -297,8 +272,9 @@ async def search_assets_tool(
                 deployed=deployed,
                 include_endpoint=include_endpoint,
             )
-            endpoint_info = data.pop("endpoint_info", None) if include_endpoint else None
-            return format_ai_assets_stats(data, endpoint_info=endpoint_info)
+            if include_endpoint:
+                return data
+            return format_ai_assets_stats(data)
 
         now = datetime.now()
         # Calculate default time range if not provided (2days window)
@@ -320,10 +296,9 @@ async def search_assets_tool(
                 page_size=1,
                 include_endpoint=include_endpoint,
             )
-            result = f"Total assets: {data.get('count', 0)}"
-            if include_endpoint and "endpoint_info" in data:
-                result += f"\n{_format_endpoint_info(data['endpoint_info'])}"
-            return result
+            if include_endpoint:
+                return data
+            return f"Total assets: {data.get('count', 0)}"
 
         data = await client.fetch_assets(
             asset_id=asset_id,
@@ -338,12 +313,12 @@ async def search_assets_tool(
             include_endpoint=include_endpoint,
         )
 
-        endpoint_info = data.pop("endpoint_info", None) if include_endpoint else None
+        if include_endpoint:
+            return data
         return format_asset_list(
             data.get("results", []),
             data.get("count", 0),
             detailed,
-            endpoint_info=endpoint_info,
         )
 
     except httpx.HTTPStatusError as e:
@@ -355,13 +330,14 @@ async def search_assets_tool(
 async def get_model_vulnerabilities_tool(
     client: AccuKnoxClient,
     include_endpoint: bool = False,
-) -> str:
+) -> str | dict:
     """Get model vulnerabilities tool implementation"""
 
     try:
         data = await client.fetch_model_vulnerabilities(include_endpoint=include_endpoint)
-        endpoint_info = data.pop("endpoint_info", None) if include_endpoint else None
-        return format_model_vulnerabilities(data, endpoint_info=endpoint_info)
+        if include_endpoint:
+            return data
+        return format_model_vulnerabilities(data)
     except httpx.HTTPStatusError as e:
         return f"API Error: {e.response.status_code}"
     except Exception as e:

@@ -111,7 +111,7 @@ async def search_assets(
     present_on_date_after: Optional[str] = None,
     present_on_date_before: Optional[str] = None,
     ctx: Context = None,
-) -> str:
+) -> str | dict:
     """
     READ-ONLY: Search and filter cloud infrastructure assets.
 
