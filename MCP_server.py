@@ -14,7 +14,10 @@ from fastmcp import FastMCP
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 
 # Read default include_endpoint setting from environment (supports both cases)
-_include_endpoint_env = os.environ.get("INCLUDE_ENDPOINT") or os.environ.get("include_endpoint", "false")
+_include_endpoint_env = os.environ.get("INCLUDE_ENDPOINT") or os.environ.get(
+    "include_endpoint",
+    "false",
+)
 DEFAULT_INCLUDE_ENDPOINT = _include_endpoint_env.lower() in ("true", "1", "yes")
 
 # Global client instance
@@ -82,7 +85,9 @@ async def search_assets(
         - "Show assets with endpoint URL" → include_endpoint=True
     """
     # Use environment default if not explicitly specified
-    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    _include_endpoint = (
+        include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    )
 
     return await search_assets_tool(
         api_client,
@@ -127,9 +132,14 @@ async def get_model_vulnerabilities(include_endpoint: Optional[bool] = None) -> 
         - "Show vulnerabilities with endpoint URL" → include_endpoint=True
     """
     # Use environment default if not explicitly specified
-    _include_endpoint = include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    _include_endpoint = (
+        include_endpoint if include_endpoint is not None else DEFAULT_INCLUDE_ENDPOINT
+    )
 
-    return await get_model_vulnerabilities_tool(api_client, include_endpoint=_include_endpoint)
+    return await get_model_vulnerabilities_tool(
+        api_client,
+        include_endpoint=_include_endpoint,
+    )
 
 
 if __name__ == "__main__":

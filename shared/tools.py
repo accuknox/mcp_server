@@ -334,7 +334,9 @@ async def get_model_vulnerabilities_tool(
     """Get model vulnerabilities tool implementation"""
 
     try:
-        data = await client.fetch_model_vulnerabilities(include_endpoint=include_endpoint)
+        data = await client.fetch_model_vulnerabilities(
+            include_endpoint=include_endpoint,
+        )
         if include_endpoint:
             return data
         return format_model_vulnerabilities(data)

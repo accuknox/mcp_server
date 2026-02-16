@@ -63,7 +63,11 @@ async def _get_finding_config(
 
     # Handle wrapped response when include_endpoint=True
     endpoint_info = None
-    if isinstance(response, dict) and "data" in response and "endpoint_info" in response:
+    if (
+        isinstance(response, dict)
+        and "data" in response
+        and "endpoint_info" in response
+    ):
         endpoint_info = response.get("endpoint_info")
         configs = response["data"]
     elif isinstance(response, dict) and "data" in response:
