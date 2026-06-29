@@ -14,6 +14,24 @@ from jose import JOSEError, jwt
 from logging_config import logger
 
 
+def _derive_cwpp_url(cspm_url: str) -> str:
+    """Derive CWPP base URL from CSPM base URL by replacing 'cspm' with 'cwpp' in hostname."""
+    if not cspm_url:
+        return ""
+    parsed = urlparse(cspm_url)
+    cwpp_netloc = parsed.netloc.replace("cspm", "cwpp", 1)
+    return f"{parsed.scheme}://{cwpp_netloc}"
+
+
+def _extract_tenant_id(token: str) -> Optional[str]:
+    """Extract tenant_id from JWT claims without verification."""
+    try:
+        claims = jwt.get_unverified_claims(token)
+        return str(claims.get("tenant_id") or claims.get("tid") or "")
+    except Exception:
+        return None
+
+
 class CustomJWTVerifier:
     JWKS_TTL_SECONDS = 3600
 
@@ -97,8 +115,13 @@ def _get_include_endpoint(value: Optional[any] = None) -> bool:
     return env_val.lower() in ("true", "1", "yes")
 
 
-def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str], bool]:
-    """Helper to extract auth context from request"""
+def _get_auth_context(
+    ctx: Context,
+) -> tuple[Optional[str], Optional[str], bool, Optional[str], Optional[str]]:
+    """Helper to extract auth context from request.
+
+    Returns: (base_url, token, include_endpoint, cwpp_base_url, tenant_id)
+    """
 
     default_base_url = os.getenv("ACCUKNOX_CSPM_BASE_URL")
     default_token = os.getenv("ACCUKNOX_API_TOKEN")
@@ -107,25 +130,38 @@ def _get_auth_context(ctx: Context) -> tuple[Optional[str], Optional[str], bool]
     try:
         if not ctx:
             logger.warning("No context provided")
-            return default_base_url, default_token, include_endpoint
+            token = default_token
+            base_url = default_base_url
+        else:
+            req = get_http_request()
+            if not req:
+                logger.warning("No HTTP request found")
+                token = default_token
+                base_url = default_base_url
+            else:
+                headers = req.headers or {}
+                token = headers.get("Token") or default_token
+                base_url = (
+                    headers.get("base_url")
+                    or req.query_params.get("base_url")
+                    or default_base_url
+                )
+                include_endpoint = (
+                    _get_include_endpoint(headers.get("include_endpoint"))
+                    or include_endpoint
+                )
 
-        req = get_http_request()
-        if not req:
-            logger.warning("No HTTP request found")
-            return default_base_url, default_token, include_endpoint
+        cwpp_base_url = _derive_cwpp_url(base_url or "")
+        tenant_id = _extract_tenant_id(token) if token else None
 
-        headers = req.headers or {}
-        token = headers.get("Token") or default_token
-        base_url = (
-            headers.get("base_url")
-            or req.query_params.get("base_url")
-            or default_base_url
-        )
-        include_endpoint = (
-            _get_include_endpoint(headers.get("include_endpoint")) or include_endpoint
-        )
-        return base_url, token, include_endpoint
+        return base_url, token, include_endpoint, cwpp_base_url, tenant_id
 
     except Exception as e:
         logger.error(f"Failed to extract auth context: {e}")
-        return default_base_url, default_token, include_endpoint
+        return (
+            default_base_url,
+            default_token,
+            include_endpoint,
+            _derive_cwpp_url(default_base_url or ""),
+            _extract_tenant_id(default_token) if default_token else None,
+        )
