@@ -178,6 +178,7 @@ async def data_type_selection() -> dict:
             "CX KICS": "Checkmarx KICS (Keep It Cloud Secure): scans infrastructure-as-code templates (Terraform, CloudFormation, Kubernetes, etc.) for misconfigurations and cloud security risks.",
             "CX SCA": "Checkmarx Software Composition Analysis: identifies vulnerable, outdated, or risky open‑source and third‑party dependencies, including license and compliance issues.",
             "CIS K8s Benchmark Findings": "CIS Kubernetes Benchmark compliance checks: evaluates Kubernetes components against CIS benchmark controls and reports gaps from recommended hardening guidelines.",
+            "DAST Findings": "Combined dynamic application security testing findings from both OWASP ZAP and Burp Suite: actively probes running web applications and APIs for runtime vulnerabilities such as SQL injection, XSS, and authentication weaknesses.",
             "DAST Findings 1": "OWASP ZAP dynamic application security testing: actively probes running web applications and APIs for runtime vulnerabilities such as SQL injection, XSS, and authentication weaknesses.",
             "DAST Findings 2": "Burp Suite dynamic web application testing: performs interactive and automated security testing of web apps and APIs to uncover logic flaws, injection issues, and other exploitable defects.",
             "Host-Endpoint Findings": "Host and endpoint vulnerability management: scans servers, VMs, and endpoints for missing patches, insecure services, weak configurations, and known OS or middleware CVEs.",
