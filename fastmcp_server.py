@@ -12,6 +12,7 @@ from logging_config import logger
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 from shared.utils.auth_validator import CustomJWTVerifier, _get_auth_context
 from shared.utils.finding import (
+    _fetch_finding_funnel,
     _fetch_findings,
     _finding_filter,
     _get_finding_config,
@@ -347,6 +348,67 @@ async def get_finding_filter(
         filter_field=filter_field,
         data_type=data_type,
         filter_search=filter_search or "",
+        base_url=base_url,
+        token=token,
+        include_endpoint=include_endpoint,
+    )
+
+
+@mcp.tool
+async def get_finding_funnel(
+    data_type: str,
+    stages: dict | str,
+    status: list | str | None = None,
+    ignored: bool = False,
+    present_on_date_after: Optional[str] = None,
+    present_on_date_before: Optional[str] = None,
+    ctx: Context = None,
+) -> dict:
+    """
+    Build a funnel for a finding data type: successively narrow findings through
+    an ordered list of filter stages and return the count at each stage.
+
+    Args:
+        data_type: Human-readable finding type (e.g., "Container Image Findings").
+        stages: Ordered mapping of {stage_field: value}, max 6 entries. The key
+            order defines the funnel `stage_order`; each key/value is also applied
+            as a filter. Values may be strings, numbers, or booleans.
+            Example (Container Image Findings):
+                {
+                    "misc__is_incluster": true,
+                    "vulnerability__risk_factor": "Critical",
+                    "vulnerability__cvss_score__gte": 9,
+                    "misc__is_runtime_verified": true
+                }
+        status: Optional status filter — a list or pipe-separated string. When
+            omitted, no status filter is applied.
+        ignored: Whether to include ignored findings (default: False).
+        present_on_date_after: Optional start date, format YYYY-MM-DD.
+        present_on_date_before: Optional end date, format YYYY-MM-DD.
+
+    Notes:
+        - Call get_finding_config() first to discover valid stage fields for the
+          data type. Lookup operators (e.g. `__gte`, `__lte`) are supported on a
+          field even though the operator form is not listed in the config.
+
+    Returns:
+        dict: { data_type, stage_order, funnel }
+    """
+    stages, valid = _normalize_dict(stages, "stages")
+    if not valid:
+        return stages
+
+    base_url = ctx.get_state("base_url")
+    token = ctx.get_state("token")
+    include_endpoint = ctx.get_state("include_endpoint")
+
+    return await _fetch_finding_funnel(
+        data_type=data_type,
+        stages=stages,
+        status=status,
+        ignored=ignored,
+        present_on_date_after=present_on_date_after,
+        present_on_date_before=present_on_date_before,
         base_url=base_url,
         token=token,
         include_endpoint=include_endpoint,
