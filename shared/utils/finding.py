@@ -19,26 +19,54 @@ vul_data_map = {
     "CX SAST": "cx_sast",
     "CX SCA": "cx_sca",
     "CIS K8s Benchmark Findings": "kubebench",
+    "DAST Findings": "zap|burp",
     "DAST Findings 1": "zap",
     "DAST Findings 2": "burp",
     "Host-Endpoint Findings": "nessus",
+    "Host-Endpoint Web Findings": "nessus_web",
     "IAC Findings": "IAC Scan",
+    "IaC Findings": "IAC Scan",
     "KIEM Findings": "KIEM",
     "LLM Findings": "garak",
+    "AI Red Teaming": "garak",
     "ML Findings": "MLChecks",
+    "Model Audit": "model_audit",
     "Opengrep Findings": "sg",
+    "SAST Findings": "sg",
     "Prowler Cloud Findings": "prowler",
+    "SARIF Findings": "droopescan",
+    "SBOM Findings": "sbom",
+    "SBOM License Findings": "sbom_license",
     "Secret Scan Findings": "secret scanning",
+    "Secret Scan Findings 1": "droopescan",
+    "Secret Scan Findings 2": "secret scanning",
     "SecurityHub AWS Findings": "securityhub",
     "Software Composition Analysis": "trivy-sca",
     "Static Code Analysis Findings": "sonarqube",
+    "Static Code Analysis Finding": "sonarqube",
     "STIG Findings": "RRA_STIG",
+    "VM CIS Findings": "RRA_CIS",
     "VM Malware Findings": "clamscan",
+    "WAF Findings": "RRA_WAF",
     "Linux VM Vulnerability Findings": "trivy-rootfs",
     "Windows VM Vulnerability Findings": "windowsvm",
     "API Security Findings": "APISCAN",
     "5G Security Findings": "5gscan",
+    "All Findings": None,
 }
+
+# Operator suffixes allowed on a stage/filter key that won't appear verbatim in
+# the config's filter_fields (e.g. `vulnerability__cvss_score__gte`).
+FILTER_OPERATOR_SUFFIXES = ("__gte",)
+
+
+def _strip_operator_suffix(field: str) -> str:
+    """Strip a trailing lookup operator (e.g. `__gte`) so the base field can be
+    validated against the config, while still allowing the operator form."""
+    for suffix in FILTER_OPERATOR_SUFFIXES:
+        if field.endswith(suffix):
+            return field[: -len(suffix)]
+    return field
 
 
 async def _get_finding_config(
@@ -383,6 +411,126 @@ async def _finding_filter(
         "filter_field": filter_field,
         "count": api_result.get("count", 0),
         "results": api_result.get("results", []),
+    }
+    if endpoint_info:
+        result["endpoint_info"] = endpoint_info
+
+    return result
+
+
+async def _fetch_finding_funnel(
+    data_type: str,
+    stages: Dict[str, Any],
+    status: Optional[Any] = None,
+    ignored: bool = False,
+    present_on_date_after: Optional[str] = None,
+    present_on_date_before: Optional[str] = None,
+    base_url: Optional[str] = None,
+    token: Optional[str] = None,
+    include_endpoint: bool = False,
+) -> dict:
+    """
+    Build a funnel across sequential filter stages for a given data_type.
+
+    `stages` is an *ordered* mapping of {stage_field: value} (max 6). The keys
+    become the `stage_order` (comma-separated) and each key/value is also sent as
+    its own query param. Keys carrying a lookup operator
+    (e.g. `vulnerability__cvss_score__gte`) are validated against their base field
+    so they are supported even though the operator form is not present in the
+    config verbatim. `status` is optional and only applied when provided.
+    """
+    if data_type not in vul_data_map:
+        return {
+            "error": f"Invalid data_type '{data_type}'.",
+            "available_data_types": list(vul_data_map),
+        }
+
+    if not stages:
+        return {"error": "At least one funnel stage is required."}
+    if len(stages) > 6:
+        return {
+            "error": f"A maximum of 6 funnel stages is supported, got {len(stages)}.",
+        }
+
+    api_data_type = vul_data_map.get(data_type)
+
+    # Load config so stage keys can be validated against the data type's fields.
+    if not config_maps:
+        await _get_finding_config(data_type, base_url=base_url, token=token)
+    config = config_maps.get(data_type, {})
+    filter_fields = config.get("filter_fields", {})
+
+    # Validate stage keys leniently: allow either the field itself or its base
+    # (after stripping a lookup operator) to be a known filter field.
+    invalid_stages = {}
+    for key in stages:
+        base_key = _strip_operator_suffix(key)
+        if filter_fields and key not in filter_fields and base_key not in filter_fields:
+            invalid_stages[key] = (
+                f"'{key}' is not a valid stage field for '{data_type}'."
+            )
+    if invalid_stages:
+        return {
+            "invalid_stages": invalid_stages,
+            "valid_stage_fields": list(filter_fields),
+        }
+
+    # Validate optional date filters.
+    for date_field, date_value in (
+        ("present_on_date_after", present_on_date_after),
+        ("present_on_date_before", present_on_date_before),
+    ):
+        if date_value:
+            try:
+                datetime.strptime(date_value, "%Y-%m-%d")
+            except ValueError:
+                return {
+                    date_field: {
+                        "provided_value": date_value,
+                        "message": f"'{date_value}' is not valid. Valid Format: YYYY-MM-DD.",
+                    },
+                }
+
+    params = {
+        "ignored": "True" if ignored else "False",
+        "stage_order": ",".join(stages.keys()),
+    }
+
+    # Status is optional: only apply when provided (list or pipe-separated string).
+    if status:
+        params["status"] = status if isinstance(status, str) else "|".join(status)
+
+    if api_data_type:
+        params["vulnerability__data_type"] = api_data_type
+    if present_on_date_after:
+        params["present_on_date_after"] = present_on_date_after
+    if present_on_date_before:
+        params["present_on_date_before"] = present_on_date_before
+
+    # Each stage's own value (coerce booleans to the API's lowercase form).
+    for key, value in stages.items():
+        if isinstance(value, bool):
+            params[key] = "true" if value else "false"
+        else:
+            params[key] = value
+
+    response = await call_api(
+        "api/v1/finding-dashboard-v2/funnel",
+        method="GET",
+        params=params,
+        base_url=base_url,
+        token=token,
+        include_endpoint=include_endpoint,
+    )
+
+    endpoint_info = None
+    if include_endpoint and isinstance(response, dict):
+        endpoint_info = response.pop("endpoint_info", None)
+
+    result = {
+        "data_type": data_type,
+        "stage_order": list(stages.keys()),
+        "funnel": response,
     }
     if endpoint_info:
         result["endpoint_info"] = endpoint_info

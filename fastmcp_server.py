@@ -14,6 +14,7 @@ from routers import cluster_management
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 from shared.utils.auth_validator import CustomJWTVerifier, _get_auth_context
 from shared.utils.finding import (
+    _fetch_finding_funnel,
     _fetch_findings,
     _finding_filter,
     _get_finding_config,
@@ -182,6 +183,7 @@ async def data_type_selection() -> dict:
             "CX KICS": "Checkmarx KICS (Keep It Cloud Secure): scans infrastructure-as-code templates (Terraform, CloudFormation, Kubernetes, etc.) for misconfigurations and cloud security risks.",
             "CX SCA": "Checkmarx Software Composition Analysis: identifies vulnerable, outdated, or risky open‑source and third‑party dependencies, including license and compliance issues.",
             "CIS K8s Benchmark Findings": "CIS Kubernetes Benchmark compliance checks: evaluates Kubernetes components against CIS benchmark controls and reports gaps from recommended hardening guidelines.",
+            "DAST Findings": "Combined dynamic application security testing findings from both OWASP ZAP and Burp Suite: actively probes running web applications and APIs for runtime vulnerabilities such as SQL injection, XSS, and authentication weaknesses.",
             "DAST Findings 1": "OWASP ZAP dynamic application security testing: actively probes running web applications and APIs for runtime vulnerabilities such as SQL injection, XSS, and authentication weaknesses.",
             "DAST Findings 2": "Burp Suite dynamic web application testing: performs interactive and automated security testing of web apps and APIs to uncover logic flaws, injection issues, and other exploitable defects.",
             "Host-Endpoint Findings": "Host and endpoint vulnerability management: scans servers, VMs, and endpoints for missing patches, insecure services, weak configurations, and known OS or middleware CVEs.",
@@ -196,6 +198,23 @@ async def data_type_selection() -> dict:
             "Static Code Analysis Findings": "Static analysis of application source code (SAST) independent of vendor: identifies coding-level security defects directly in code repositories before build and deployment.",
             "STIG Findings": "Security Technical Implementation Guide (STIG) compliance: checks systems and configurations against STIG and similar hardening baselines to reduce technical risk.",
             "API Security Findings": "API-focused security testing: analyzes REST and GraphQL APIs for issues such as broken access control, injection, insecure authentication, and improper input validation.",
+            "VM Malware Findings": "ClamAV-based malware scanning of virtual machines: detects known malicious files, signatures, and suspicious binaries on VM disks.",
+            "Linux VM Vulnerability Findings": "Trivy rootfs scanning of Linux virtual machines: identifies OS and package-level CVEs on non-containerized Linux hosts.",
+            "Windows VM Vulnerability Findings": "Windows VM vulnerability scanning: identifies missing patches and known CVEs affecting Windows-based virtual machines.",
+            "5G Security Findings": "5G network security scanning: detects threats and misconfigurations in 5G core and radio network components.",
+            "Host-Endpoint Web Findings": "Nessus web application scanning: assesses web services running on hosts and endpoints for vulnerabilities and misconfigurations.",
+            "IaC Findings": "Checkov infrastructure-as-code scanning: reviews Terraform, CloudFormation, ARM, and similar templates for misconfigurations, insecure defaults, and non‑compliant resource definitions.",
+            "Model Audit": "ML model artifact auditing: inspects serialized model files and related components for unsafe code execution risks and integrity issues.",
+            "SAST Findings": "Semgrep source code and repository scanning: mines codebases using pattern and rule-based checks to find known vulnerability patterns, insecure usage, and policy violations.",
+            "SARIF Findings": "SARIF-based scan results (e.g., Droopescan) surfaced as findings, covering CMS and web application security checks.",
+            "SBOM Findings": "Software Bill of Materials vulnerability findings: identifies known CVEs in components discovered via SBOM analysis.",
+            "SBOM License Findings": "Software Bill of Materials license findings: flags risky, restrictive, or non-compliant open-source licenses found in SBOM components.",
+            "Secret Scan Findings 1": "Droopescan-based secret and exposure detection for CMS and web application scanning.",
+            "Secret Scan Findings 2": "Secret scanning across source code and repositories to detect exposed credentials, tokens, and sensitive values.",
+            "VM CIS Findings": "CIS benchmark compliance checks for virtual machines: evaluates VM configurations against CIS hardening guidelines.",
+            "WAF Findings": "Web Application Firewall configuration assessment: checks WAF resources against security hardening recommendations.",
+            "AI Red Teaming": "LLM red teaming via Garak: probes LLM-powered applications for prompt injection, jailbreaks, data leakage, and other generative AI risks.",
+            "All Findings": "Unified view across all finding data types, useful for cross-tool searches and aggregated reporting.",
         },
     }
 
@@ -333,6 +352,67 @@ async def get_finding_filter(
         filter_field=filter_field,
         data_type=data_type,
         filter_search=filter_search or "",
+        base_url=base_url,
+        token=token,
+        include_endpoint=include_endpoint,
+    )
+
+
+@mcp.tool
+async def get_finding_funnel(
+    data_type: str,
+    stages: dict | str,
+    status: list | str | None = None,
+    ignored: bool = False,
+    present_on_date_after: Optional[str] = None,
+    present_on_date_before: Optional[str] = None,
+    ctx: Context = None,
+) -> dict:
+    """
+    Build a funnel for a finding data type: successively narrow findings through
+    an ordered list of filter stages and return the count at each stage.
+
+    Args:
+        data_type: Human-readable finding type (e.g., "Container Image Findings").
+        stages: Ordered mapping of {stage_field: value}, max 6 entries. The key
+            order defines the funnel `stage_order`; each key/value is also applied
+            as a filter. Values may be strings, numbers, or booleans.
+            Example (Container Image Findings):
+                {
+                    "misc__is_incluster": true,
+                    "vulnerability__risk_factor": "Critical",
+                    "vulnerability__cvss_score__gte": 9,
+                    "misc__is_runtime_verified": true
+                }
+        status: Optional status filter — a list or pipe-separated string. When
+            omitted, no status filter is applied.
+        ignored: Whether to include ignored findings (default: False).
+        present_on_date_after: Optional start date, format YYYY-MM-DD.
+        present_on_date_before: Optional end date, format YYYY-MM-DD.
+
+    Notes:
+        - Call get_finding_config() first to discover valid stage fields for the
+          data type. Lookup operators (e.g. `__gte`, `__lte`) are supported on a
+          field even though the operator form is not listed in the config.
+
+    Returns:
+        dict: { data_type, stage_order, funnel }
+    """
+    stages, valid = _normalize_dict(stages, "stages")
+    if not valid:
+        return stages
+
+    base_url = ctx.get_state("base_url")
+    token = ctx.get_state("token")
+    include_endpoint = ctx.get_state("include_endpoint")
+
+    return await _fetch_finding_funnel(
+        data_type=data_type,
+        stages=stages,
+        status=status,
+        ignored=ignored,
+        present_on_date_after=present_on_date_after,
+        present_on_date_before=present_on_date_before,
         base_url=base_url,
         token=token,
         include_endpoint=include_endpoint,
