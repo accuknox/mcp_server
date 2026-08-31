@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from logging_config import logger
-from routers import cluster_management
+from routers import alerts, cluster_management, policies
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 from shared.utils.auth_validator import CustomJWTVerifier, _get_auth_context
 from shared.utils.finding import (
@@ -420,6 +420,8 @@ async def get_finding_funnel(
 
 
 cluster_management.register(mcp)
+alerts.register(mcp)
+policies.register(mcp)
 
 
 mode = os.environ.get("MCP_MODE", "http").lower()

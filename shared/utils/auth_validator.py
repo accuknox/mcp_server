@@ -23,13 +23,30 @@ def _derive_cwpp_url(cspm_url: str) -> str:
     return f"{parsed.scheme}://{cwpp_netloc}"
 
 
+# AccuKnox tokens carry the tenant as the hyphenated `tenant-id` claim (a number);
+# the other spellings are accepted as fallbacks.
+_TENANT_CLAIMS = ("tenant-id", "tenant_id", "tenantId", "tid")
+
+
 def _extract_tenant_id(token: str) -> Optional[str]:
-    """Extract tenant_id from JWT claims without verification."""
+    """Extract the tenant id from JWT claims without verification.
+
+    Returns None when no tenant claim is present, so callers can tell "no tenant"
+    apart from a real value instead of sending an unscoped request.
+    """
+    if not token:
+        return None
     try:
-        claims = jwt.get_unverified_claims(token)
-        return str(claims.get("tenant_id") or claims.get("tid") or "")
+        # Tolerate a token that still carries its "Bearer " prefix.
+        claims = jwt.get_unverified_claims(token.split(" ", 1)[-1].strip())
     except Exception:
         return None
+
+    for claim in _TENANT_CLAIMS:
+        value = claims.get(claim)
+        if value not in (None, ""):
+            return str(value)
+    return None
 
 
 class CustomJWTVerifier:
