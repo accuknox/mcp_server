@@ -1,5 +1,6 @@
-import os
-from typing import Optional
+﻿import os
+from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional
 
 import uvicorn
 from fastmcp import Context, FastMCP
@@ -9,6 +10,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 
 from logging_config import logger
+from routers import alerts, cluster_management, policies
 from shared import AccuKnoxClient, get_model_vulnerabilities_tool, search_assets_tool
 from shared.utils.auth_validator import CustomJWTVerifier, _get_auth_context
 from shared.utils.finding import (
@@ -29,7 +31,7 @@ verifier = CustomJWTVerifier()
 class BearerTokenMiddleware(Middleware):
     async def on_message(self, context: MiddlewareContext, call_next):
         ctx = context.fastmcp_context
-        base_url, token, include_endpoint = _get_auth_context(ctx)
+        base_url, token, include_endpoint, cwpp_base_url, tenant_id = _get_auth_context(ctx)
         if not base_url or not token:
             raise ToolError(
                 "Missing required authentication parameters: base_url or token",
@@ -53,6 +55,8 @@ class BearerTokenMiddleware(Middleware):
         ctx.set_state("base_url", base_url)
         ctx.set_state("token", token)
         ctx.set_state("include_endpoint", include_endpoint)
+        ctx.set_state("cwpp_base_url", cwpp_base_url)
+        ctx.set_state("tenant_id", tenant_id)
 
         return await call_next(context)
 
@@ -413,6 +417,11 @@ async def get_finding_funnel(
         token=token,
         include_endpoint=include_endpoint,
     )
+
+
+cluster_management.register(mcp)
+alerts.register(mcp)
+policies.register(mcp)
 
 
 mode = os.environ.get("MCP_MODE", "http").lower()

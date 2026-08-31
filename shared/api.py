@@ -11,12 +11,16 @@ from dotenv import load_dotenv
 
 from logging_config import logger
 
+from .modules.alerts.api import AlertsMixin
+from .modules.cluster_management.api import ClusterManagementMixin
+from .modules.policies.api import PoliciesMixin
+
 # https://cspm.demo.accuknox.com/api/v1/assets?page=1&page_size=20&search=&depth=3&ordering=name&label_name=K8SJOB&present_on_date_after=2025-11-22&present_on_date_before=2025-11-24
 
 load_dotenv()
 
 
-class AccuKnoxClient:
+class AccuKnoxClient(ClusterManagementMixin, AlertsMixin, PoliciesMixin):
     """Client for AccuKnox CSPM API"""
 
     def __init__(self, base_url: Optional[str] = None, api_token: Optional[str] = None):
