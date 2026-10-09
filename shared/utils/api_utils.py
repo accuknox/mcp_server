@@ -17,6 +17,7 @@ async def call_api(
     base_url: Optional[str] = "",
     token: Optional[str] = "",
     include_endpoint: bool = False,
+    tenant_id: Optional[str] = None,
 ) -> dict:
     """
     Utility function to call GET or POST APIs.
@@ -44,6 +45,8 @@ async def call_api(
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
+    if tenant_id:
+        headers["X-Tenant-Id"] = tenant_id
 
     url = f"{base_url}/{endpoint.lstrip('/')}"
     logger.info(f"API endpoint {url}, {params}, {data}")
